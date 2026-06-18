@@ -17,7 +17,6 @@
       "Bash(node ./dist/imod.js hub clone --help)",
       "Bash(node ./dist/imod.js hub create --help)",
       "Bash(npm run *)",
-      "Bash(node ./dist/imod.js util fastinate --help)",
       "Bash(node ./dist/imod.js util query --help)",
       "Bash(node ./dist/imod.js util partinate --help)",
       "Bash(node -p \"require\\('./package.json'\\).version\")",
