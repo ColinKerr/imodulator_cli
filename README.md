@@ -15,3 +15,40 @@ IMOD_SCOPE=itwin-platform
 IMOD_REDIRECT_URI=http://localhost:3000/signin-callback
 IMOD_ISSUER_URL=https://ims.bentley.com
 ```
+
+## Example workflow
+
+Authenticate
+```bash
+npm run imod auth
+```
+
+Acquire briefcase id
+
+```bash
+npm run imod hub briefcase acquire-id -- --imodel-id <iModelId>
+```
+
+> Note the briefcase id out put to console you will need it for future steps
+
+Download briefcase locally
+
+```bash
+npm run imod hub briefcase download -- --imodel-id <iModelId> --itwin-id <iTwinId> --briefcase-id <briefcaseId>
+```
+
+Partinate iModel, this moves all geometry streams larger than 4k to geometry parts.  Threshold is configurable, see help for details.
+
+```bash
+npm run imod hub edit partinate -- --imodel-id <iModelId> --briefcase-id <briefcaseId>
+```
+
+> Note it logs how many geometric element 3ds it partinated
+
+Push changes to hub
+
+```bash
+npm run imod hub briefcase push -- --imodel-id <iModelId> --briefcase-id <briefcaseId>
+```
+
+You should now see a new changeset when you check your iModel online.
