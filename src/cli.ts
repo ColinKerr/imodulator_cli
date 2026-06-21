@@ -16,6 +16,7 @@ import { cacheListImodelsCommand } from "./commands/cache/list-imodels";
 import { cacheListDbCommand } from "./commands/cache/list-db";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
+import { editPokeCommand } from "./commands/edit/poke";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
@@ -69,7 +70,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
     .command({
       command: "edit <action>",
       describe: "Edit iModels, creating local change sets that can be pushed to the hub",
-      builder: (y) => y.command(importSchemasCommand).command(editPartinateCommand).demandCommand(1),
+      builder: (y) =>
+        y
+          .command(importSchemasCommand)
+          .command(editPartinateCommand)
+          .command(editPokeCommand)
+          .demandCommand(1),
       handler: () => {},
     })
     .command({

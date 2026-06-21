@@ -60,6 +60,7 @@ Commands under `imod edit`
 
 - `imod edit import-schemas` - Imports schemas found at `--schema-path` into the iModel specified by `--imodel-id` and `--briefcase-id`.  Error if the iModel briefcase is not already downloaded.
 - `imod edit partinate` - Partinates the briefcase specified by `--imodel-id` and `--briefcase-id` (see [PARTINATE.md](./commands/util/PARTINATE.md) for the `--blob-size` behaviour), saving the moved geometry as local changes that `imod hub briefcase push` can push to the hub.  Error if the iModel briefcase is not already downloaded.
+- `imod edit poke` - Updates the last mod date of the root model.  Error if the iModel briefcase is not already downloaded.
 
 
 ## Util commands
