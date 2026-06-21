@@ -44,6 +44,7 @@ export async function runPartinate(args: PartinateArgs): Promise<PartinateResult
       await db.acquireSchemaLock();
     }
 
+    console.log(`Found ${candidateIds.length} element(s) with GeometryStream blob larger than ${args.blobSize} bytes.`);
     for (const elementId of candidateIds) {
       const props = db.elements.getElementProps<GeometricElement3dProps>({
         id: elementId,
@@ -71,9 +72,13 @@ export async function runPartinate(args: PartinateArgs): Promise<PartinateResult
       props.geom = builder.geometryStream;
       db.elements.updateElement(props);
       result.converted++;
+      if (result.converted % 7000 === 0) {
+        console.log(`Converted ${result.converted} element(s)...`);
+        db.saveChanges(`partinate: converted ${result.converted} elements`);
+      }
     }
 
-    db.saveChanges("partinate");
+    db.saveChanges("partinate complete");
 
     db.vacuum();
   } finally {
