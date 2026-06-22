@@ -5,9 +5,14 @@ import { BriefcaseManager } from "@itwin/core-backend";
 // HubMock is shipped but marked @internal, so it is imported from its module path.
 import { HubMock } from "@itwin/core-backend/lib/cjs/internal/HubMock";
 import { Logger, LogLevel } from "@itwin/core-bentley";
+import type { AuthorizationClient } from "@itwin/core-common";
 import { startIModelHost, shutdownIModelHost } from "../host/imodel-host";
 
 const TEST_TOKEN = "test-token";
+
+const mockAuthClient: AuthorizationClient = {
+  getAccessToken: async () => TEST_TOKEN,
+};
 
 export interface TestBriefcase {
   fileName: string;
@@ -16,27 +21,13 @@ export interface TestBriefcase {
   briefcaseId: number;
 }
 
-/**
- * Lifecycle helper for command tests that need a writable iModel.
- *
- * It starts the shared IModelHost, redirects all hub access to a process-local
- * {@link HubMock} (no authentication or network), and can mint writable
- * briefcases on demand. Call {@link startup} in `beforeAll` and {@link shutdown}
- * in `afterAll`.
- */
 export class HubMockFixture {
   private outputDir = "";
   private started = false;
 
   async startup(mockName: string): Promise<void> {
-    // startIModelHost constructs an auth client that requires a client id, even
-    // though HubMock never uses it. Provide a dummy one if the env is unset.
-    if (!process.env.IMOD_CLIENT_ID)
-      process.env.IMOD_CLIENT_ID = "test-client-id";
-
-    await startIModelHost();
-    // startIModelHost enables trace logging; quiet it so test output stays readable.
-    Logger.setLevelDefault(LogLevel.Error);
+    await startIModelHost(mockAuthClient);
+    
     this.outputDir = mkdtempSync(join(tmpdir(), `imod-${mockName}-`));
     HubMock.startup(mockName, this.outputDir);
     this.started = true;

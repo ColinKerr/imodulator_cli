@@ -7,4 +7,6 @@
 - Store the `--imodel-id` parameter in a variable named `imodelId`.
 - Store the `--itwin-id` parameter in a variable named `itwinId`.
 - Prefer use of ECSql over Sql where possible
-- Do not put excessive explanatory comments in the code.  Instead use well defined function names and clean code with comments calling out exceptional things.  Use plan markdown files to describe architecture or theory if necessary.  
+- Do not put excessive explanatory comments in the code.  
+- Instead use well defined function names and clean code with rare comments calling out exceptional things.
+- Use plan markdown files to describe architecture or theory if necessary.  

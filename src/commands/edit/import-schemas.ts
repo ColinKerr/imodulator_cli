@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { BriefcaseDb } from "@itwin/core-backend";
 import { startIModelHost } from "../../host/imodel-host";
 import { getCacheDb } from "../../cache/cache-db";
+import { getAccessToken } from "../../auth/auth-client";
 
 export interface ImportSchemasArgs {
   imodelId: string;
@@ -29,6 +30,7 @@ export async function runImportSchemas(args: ImportSchemasArgs): Promise<string[
     throw new Error(`Briefcase ${args.briefcaseId} for iModel ${args.imodelId} is not downloaded locally.`);
 
   await startIModelHost();
+  await getAccessToken(); // ensure auth client is signed in and has a valid access token
   const db = await BriefcaseDb.open({ fileName: row.file_path, readonly: false });
   try {
     await db.acquireSchemaLock();

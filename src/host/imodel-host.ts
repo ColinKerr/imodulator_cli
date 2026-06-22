@@ -1,26 +1,29 @@
 import { IModelHost, type IModelHostOptions } from "@itwin/core-backend";
 import { Logger, LogLevel } from "@itwin/core-bentley";
+import type { AuthorizationClient } from "@itwin/core-common";
 import { ensureCacheDir } from "../cache/cache-dir";
-import { getAuthorizationClient } from "../auth/auth-client";
+import { getAuthorizationClient, setAuthorizationClient } from "../auth/auth-client";
 import { getHubAccess } from "./hub-access";
-import { NodeCliAuthorizationClient } from "@itwin/node-cli-authorization/lib/cjs/Client";
 
 let started = false;
 
-export async function startIModelHost(): Promise<void> {
+/**
+ * Start the shared IModelHost.
+ * @param authorizationClient Optional custom auth client.  Default is NodeCliAuthorizationClient.
+ */
+export async function startIModelHost(authorizationClient?: AuthorizationClient): Promise<void> {
   if (started)
     return;
   Logger.initializeToConsole();
-  Logger.setLevelDefault(LogLevel.Warning);
-  const authClient = getAuthorizationClient() as NodeCliAuthorizationClient;
+  Logger.setLevelDefault(LogLevel.Error);
+  if (authorizationClient)
+    setAuthorizationClient(authorizationClient);
   const options: IModelHostOptions = {
     cacheDir: ensureCacheDir(),
     hubAccess: getHubAccess(),
-    authorizationClient: authClient,
+    authorizationClient: await getAuthorizationClient(),
   };
   await IModelHost.startup(options);
-  await authClient.signIn();
-  await authClient.getAccessToken();
   started = true;
 }
 

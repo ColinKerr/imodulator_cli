@@ -3,6 +3,7 @@ import { BriefcaseDb } from "@itwin/core-backend";
 import { IModel } from "@itwin/core-common";
 import { startIModelHost } from "../../host/imodel-host";
 import { getCacheDb } from "../../cache/cache-db";
+import { getAccessToken } from "../../auth/auth-client";
 
 export interface EditPokeArgs {
   imodelId: string;
@@ -23,6 +24,7 @@ export async function runEditPoke(args: EditPokeArgs): Promise<string> {
     throw new Error(`Briefcase ${args.briefcaseId} for iModel ${args.imodelId} is not downloaded locally.`);
 
   await startIModelHost();
+  await getAccessToken(); // ensure auth client is signed in and has a valid access token
   const db = await BriefcaseDb.open({ fileName: row.file_path, readonly: false });
   try {
     await db.locks.acquireLocks({ exclusive: [IModel.repositoryModelId] });

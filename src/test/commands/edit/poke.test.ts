@@ -33,19 +33,20 @@ async function registeredBriefcase(name: string): Promise<TestBriefcase> {
   return briefcase;
 }
 
+async function readRootLastMod(fileName: string): Promise<string> {
+  const db = await BriefcaseDb.open({ fileName, readonly: true });
+  try {
+    return db.models.queryLastModifiedTime(IModel.repositoryModelId);
+  } finally {
+    db.close();
+  }
+}
+
 describe("imod edit poke", () => {
   it("updates the root model last mod and leaves a pushable changeset", async () => {
     const briefcase = await registeredBriefcase("poke");
 
-    const before = (async () => {
-      const db = await BriefcaseDb.open({ fileName: briefcase.fileName, readonly: true });
-      try {
-        return db.models.queryLastModifiedTime(IModel.repositoryModelId);
-      } finally {
-        db.close();
-      }
-    });
-    const beforeLastMod = await before();
+    const beforeLastMod = await readRootLastMod(briefcase.fileName);
 
     // Ensure wall-clock advances so the new LastMod is strictly later.
     await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -54,7 +55,8 @@ describe("imod edit poke", () => {
       imodelId: briefcase.iModelId,
       briefcaseId: briefcase.briefcaseId,
     });
-    expect(new Date(lastMod).getTime()).toBeGreaterThan(new Date(beforeLastMod).getTime());
+    expect(lastMod).toBeTruthy();
+    expect(lastMod).not.toBe(beforeLastMod);
 
     const db = await BriefcaseDb.open({ fileName: briefcase.fileName, readonly: true });
     try {

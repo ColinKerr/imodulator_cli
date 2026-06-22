@@ -78,9 +78,14 @@ export async function runPartinate(args: PartinateArgs): Promise<PartinateResult
       }
     }
 
-    db.saveChanges("partinate complete");
+    if (result.converted > 0) {
+      console.log(`Converted ${result.converted} element(s) into ${result.partsCreated} part(s); skipped ${result.skipped} element(s). Saving changes...`);
+      db.saveChanges("partinate complete");
+      db.vacuum();
+    } else {
+      console.log(`No elements needed partination, skipped ${result.skipped} element(s).`);
+    }
 
-    db.vacuum();
   } finally {
     db.close();
   }

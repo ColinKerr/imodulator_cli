@@ -6,8 +6,7 @@ const DEFAULT_SCOPE = [
   "itwin-platform",
 ].join(" ");
 
-let client: NodeCliAuthorizationClient | undefined;
-let signedIn = false;
+let client: AuthorizationClient | undefined;
 
 function getClientId(): string {
   const id = process.env.IMOD_CLIENT_ID;
@@ -16,39 +15,30 @@ function getClientId(): string {
   return id;
 }
 
-function getOrCreateClient(): NodeCliAuthorizationClient {
+async function getOrCreateClient(): Promise<AuthorizationClient> {
   if (client)
     return client;
-  client = new NodeCliAuthorizationClient({
+  const nodeClient = new NodeCliAuthorizationClient({
     clientId: getClientId(),
     scope: process.env.IMOD_SCOPE ?? DEFAULT_SCOPE,
     issuerUrl: process.env.IMOD_ISSUER_URL,
     redirectUri: process.env.IMOD_REDIRECT_URI,
   });
-  return client;
+  await nodeClient.signIn();
+  client = nodeClient;
+  return nodeClient;
 }
 
-export async function signIn(): Promise<void> {
-  const c = getOrCreateClient();
-  await c.signIn();
-  signedIn = true;
-}
-
-export async function signOut(): Promise<void> {
-  const c = getOrCreateClient();
-  await c.signOut();
-  signedIn = false;
+export function setAuthorizationClient(authClient: AuthorizationClient): void {
+  client = authClient;
 }
 
 export async function getAccessToken(): Promise<AccessToken> {
-  const c = getOrCreateClient();
-  if (!signedIn) {
-    await c.signIn();
-    signedIn = true;
-  }
+  const c = await getOrCreateClient();
   return c.getAccessToken();
 }
 
-export function getAuthorizationClient(): AuthorizationClient {
+export async function getAuthorizationClient(): Promise<AuthorizationClient> {
   return getOrCreateClient();
 }
+

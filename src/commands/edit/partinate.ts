@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import { getCacheDb } from "../../cache/cache-db";
 import { DEFAULT_BLOB_SIZE, runPartinate, type PartinateResult } from "../util/partinate";
+import { getAccessToken } from "../../auth/auth-client";
 
 export interface EditPartinateArgs {
   imodelId: string;
@@ -21,6 +22,7 @@ export async function runEditPartinate(args: EditPartinateArgs): Promise<Partina
   if (!row)
     throw new Error(`Briefcase ${args.briefcaseId} for iModel ${args.imodelId} is not downloaded locally.`);
 
+  await getAccessToken(); // ensure auth client is signed in and has a valid access token
   return runPartinate({ imodelPath: row.file_path, blobSize: args.blobSize });
 }
 
@@ -43,11 +45,10 @@ export const editPartinateCommand: CommandModule<unknown, EditPartinateArgs> = {
       briefcaseId: argv.briefcaseId,
       blobSize: argv.blobSize,
     });
-    console.log(
-      `Moved geometry streams for ${result.converted} element(s); created ${result.partsCreated} GeometryPart(s); skipped ${result.skipped}`,
-    );
-    console.log(
-      `Local changes saved. Push them with: imod hub briefcase push --imodel-id ${argv.imodelId} --briefcase-id ${argv.briefcaseId}`,
-    );
+    if (result.converted > 0) {
+      console.log(
+        `Local changes saved. Push them with: imod hub briefcase push --imodel-id ${argv.imodelId} --briefcase-id ${argv.briefcaseId}`,
+      );
+    }
   },
 };

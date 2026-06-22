@@ -1,8 +1,8 @@
 import type { CommandModule } from "yargs";
-import { signIn } from "../auth/auth-client";
+import { getAccessToken } from "../auth/auth-client";
 
 export async function runAuth(): Promise<void> {
-  await signIn();
+  await getAccessToken();
   console.log("Signed in to developer.bentley.com");
 }
 
