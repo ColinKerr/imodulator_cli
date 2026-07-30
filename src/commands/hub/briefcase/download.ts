@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import { BriefcaseManager } from "@itwin/core-backend";
 import { startIModelHost } from "../../../host/imodel-host";
+import { createDownloadProgress } from "../../../host/download-progress";
 import { getAccessToken } from "../../../auth/auth-client";
 import { getCacheDb } from "../../../cache/cache-db";
 
@@ -18,6 +19,7 @@ export async function runDownloadBriefcase(args: DownloadBriefcaseArgs): Promise
     iTwinId: args.itwinId,
     iModelId: args.imodelId,
     briefcaseId: args.briefcaseId,
+    onProgress: createDownloadProgress(`Downloading briefcase ${args.briefcaseId} for iModel ${args.imodelId}`),
   });
   getCacheDb()
     .prepare(

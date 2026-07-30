@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { BriefcaseManager } from "@itwin/core-backend";
 import { BriefcaseIdValue, IModelVersion } from "@itwin/core-common";
 import { startIModelHost } from "../../../host/imodel-host";
+import { createDownloadProgress } from "../../../host/download-progress";
 import { getHubAccess } from "../../../host/hub-access";
 import { getAccessToken } from "../../../auth/auth-client";
 import { getCacheDb } from "../../../cache/cache-db";
@@ -60,6 +61,7 @@ export async function runDownloadCheckpoint(args: DownloadCheckpointArgs): Promi
     briefcaseId: BriefcaseIdValue.Unassigned,
     fileName,
     asOf: IModelVersion.asOfChangeSet(changeset.id).toJSON(),
+    onProgress: createDownloadProgress(`Downloading checkpoint for iModel ${imodelId}`),
   });
 
   getCacheDb()

@@ -17,6 +17,7 @@ import { cacheListDbCommand } from "./commands/cache/list-db";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
+import { usingMapCommand } from "./commands/transform/using-map";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
@@ -76,6 +77,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(editPartinateCommand)
           .command(editPokeCommand)
           .demandCommand(1),
+      handler: () => {},
+    })
+    .command({
+      command: "transform <action>",
+      describe: "Transform iModels, creating local change sets that can be pushed to the hub",
+      builder: (y) => y.command(usingMapCommand).demandCommand(1),
       handler: () => {},
     })
     .command({

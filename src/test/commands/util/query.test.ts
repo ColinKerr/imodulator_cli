@@ -5,13 +5,19 @@ import { tmpdir } from "node:os";
 import { BriefcaseDb, PhysicalModel, SpatialCategory } from "@itwin/core-backend";
 import { Code, IModel, SubCategoryAppearance, type QueryStats } from "@itwin/core-common";
 import { formatQueryStats, runQuery } from "../../../commands/util/query";
+import { closeCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture } from "../../hub-mock-fixture";
 
 const fixture = new HubMockFixture();
+let cacheDir: string;
 let tempDir: string;
 let imodelPath: string;
 
 beforeAll(async () => {
+  // Isolate the cache (and IModelHost workspace) in a temp dir so the test does not touch
+  // the real ~/.imod/cache or collide with other test files.
+  cacheDir = mkdtempSync(join(tmpdir(), "imod-query-cache-"));
+  process.env.IMOD_CACHE_DIR = cacheDir;
   await fixture.startup("query");
   tempDir = mkdtempSync(join(tmpdir(), "imod-query-test-"));
 
@@ -29,8 +35,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  closeCacheDb();
   await fixture.shutdown();
   rmSync(tempDir, { recursive: true, force: true });
+  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 function writeQuery(name: string, ecsql: string): string {

@@ -11,7 +11,7 @@ The command is specified by:
 
 - `--imodel-path` - path to the local iModel file (opened as a writable briefcase).
 - `--blob-size` - byte threshold; only elements whose stored `GeometryStream` blob is
-  larger than this are converted. Defaults to `102400` (100 KiB).
+  larger than this are converted. Defaults to `1024` (1 KiB).
 
 Partinate does **not** edit the underlying SQLite tables directly. `GeometryStream`
 blobs are serialized geometry and a `GeometryPart` requires proper BIS bookkeeping, so
@@ -35,12 +35,16 @@ pushed with `imod hub briefcase push`.
      the element's `GeometryStream` verbatim. Because the part holds the geometry in the
      element's local coordinates, referencing it at the identity transform reproduces the
      original appearance.
+   - Save the mapping between element and the part by saving the ids of both in a temporary table
+5. `saveChanges`.
+6. for each candidate, load its props:
    - Replace the element's `GeometryStream` with a single `appendGeometryPart3d(partId)`
      entry built via `GeometryStreamBuilder`, leaving placement and category unchanged,
-     and update the element.
-5. `saveChanges`, then `vacuum` the iModel to reclaim the space freed by moving geometry
+     and update the element.  Use the mapping stored in step for to get the part id for this
+     elements id.
+7. `saveChanges`, then `vacuum` the iModel to reclaim the space freed by moving geometry
    out of the element rows.
-6. Report the number of elements whose geometry stream was moved, parts created, and
+8. Report the number of elements whose geometry stream was moved, parts created, and
    skipped.
 
 ## Idempotency
@@ -48,3 +52,14 @@ pushed with `imod hub briefcase push`.
 After conversion an element's `GeometryStream` is only a small part reference (well under
 `--blob-size`), so re-running the command selects no rows and converts nothing. The
 part-reference skip guard reinforces this for any element that already references a part.
+
+The element-to-part mapping is held in a SQLite `TEMP` table, which is connection-local: it
+is not part of the iModel's tracked changes (so it never enters a changeset) and is dropped
+when the briefcase is closed. This keeps the scratch mapping out of the BIS data, consistent
+with not editing the underlying tables directly.
+
+Because the parts are committed (step 5) before any element is re-pointed (step 6), an
+interruption between the two passes can leave committed `GeometryPart`s whose elements still
+hold their full geometry. Re-running converts those elements again (the skip guard sees full
+geometry, not a part reference) and creates fresh parts, orphaning the earlier ones; such
+orphans are harmless but waste space until removed.

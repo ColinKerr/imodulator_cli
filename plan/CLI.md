@@ -56,18 +56,24 @@ Commands under `imod cache`
 
 ## Edit commands
 
-Commands under `imod edit`
+Commands under `imod edit`.  All Edit commands error if the iModel briefcase is not already downloaded.
 
-- `imod edit import-schemas` - Imports schemas found at `--schema-path` into the iModel specified by `--imodel-id` and `--briefcase-id`.  Error if the iModel briefcase is not already downloaded.
-- `imod edit partinate` - Partinates the briefcase specified by `--imodel-id` and `--briefcase-id` (see [PARTINATE.md](./commands/util/PARTINATE.md) for the `--blob-size` behaviour), saving the moved geometry as local changes that `imod hub briefcase push` can push to the hub.  Error if the iModel briefcase is not already downloaded.
-- `imod edit poke` - Updates the last mod date of the root model.  Error if the iModel briefcase is not already downloaded.
+- `imod edit import-schemas` - Imports schemas found at `--schema-path` into the iModel specified by `--imodel-id` and `--briefcase-id`.
+- `imod edit partinate` - Partinates the briefcase specified by `--imodel-id` and `--briefcase-id` (see [PARTINATE.md](./commands/util/PARTINATE.md) for the `--blob-size` behavior), saving the moved geometry as local changes that `imod hub briefcase push` can push to the hub.
+- `imod edit poke` - Updates the last mod date of the root model.
 
+## Transform commands
+
+Commands under `imod transform`.  All Transform commands error if the iModel briefcase is not already downloaded.
+
+- `imod transform unify-schemas` - Converts elements of classes from schemas specified by `--source-schemas` to elements of like named classes from `--target-schemas`.  The iModel to be transformed is specified by `--imodel-id` and `--briefcase-id`. 
+- `imod transform using-map` - Converts elements of classes specified by the `--map-file` to the target class specified by that mapping file.  The `--dry_run` parameter generates a json output describing count of elements that would be transformed, grouped by source class instead of actually running the transform.  The iModel to be transformed is specified by `--imodel-id` and `--briefcase-id`.
 
 ## Util commands
 
 Commands under `imod util`
 
 - `imod util export-schemas` - Exports schemas from iModel specified by `--imodel-id` and `--briefcase-id` or `--imodel-id` and `--changeset-id` to directory specified by `--schema-path`.
-- `imod util merge-schema-set` - Merges schemas from the set found in `--schema-path` whose schema alias match the regex input via `--alias` and outputs the resulting schemas in `--out-path`.  See [MERGE_DETAILS.md](./commands/util/MERGE_SCHEMA_SET.md).
+- `imod util merge-schema-set` - Merges schemas from the set found in `--schema-path` whose schema alias match the regex input via `--alias` and outputs the resulting schemas in `--out-path`.  `--gen-mapping` flag generates a mapping file that can be used by `imod transform using-map` to transform existing data.  See [MERGE_DETAILS.md](./commands/util/MERGE_SCHEMA_SET.md).
 - `imod util query` - Executes an ECSql query against the iModel specified by the `--imodel-path` argument.  Query loaded from the file specified by `--query-path`, query saved to the file specified by `--results-path` formatted as csv.  Query performance statistics (rows returned, CPU/total time, memory used, retries) are printed to the console after the query runs.
 - `imod util partinate` - Modifies GeometricElement3D elements with GeometryStream properties greater than `--blob-size` so their geometry is stored in a GeometryPart instead of directly in the GeometryStream property on the element.  See [PARTINATE.md](./commands/util/PARTINATE.md).
