@@ -31,7 +31,9 @@
       "WebFetch(domain:www.itwinjs.org)",
       "Bash(npx vitest *)",
       "Bash(grep -vE \"Trace|Info \\\\||npm notice|node-cli-auth|^\\\\s*$\")",
-      "Bash(grep -vE \"Trace|Info \\\\||npm notice|node-cli-auth|Query profiler|^\\\\s*$\")"
+      "Bash(grep -vE \"Trace|Info \\\\||npm notice|node-cli-auth|Query profiler|^\\\\s*$\")",
+      "Bash(mktemp -d)",
+      "Bash(IMOD_CACHE_DIR=\"$\\(mktemp -d\\)/imod-cache\" npx vitest run)"
     ]
   }
 }
