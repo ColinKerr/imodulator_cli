@@ -68,6 +68,6 @@ Commands under `imod edit`
 Commands under `imod util`
 
 - `imod util export-schemas` - Exports schemas from iModel specified by `--imodel-id` and `--briefcase-id` or `--imodel-id` and `--changeset-id` to directory specified by `--schema-path`.
-- `imod util merge-schema-set` - Merges schemas from the set found in `--schema-path` whose schema alias match the regex input via `--alias` and outputs the resulting schemas in `--out-path`.  See [MERGE_DETAILS.md](./commands/util/MERGE_SCHEMA_SET.md).
+- `imod util merge-schema-set` - Merges schemas from the set found in `--schema-path` whose schema alias match the regex input via `--alias` and outputs the resulting schemas in `--out-path`.  See ./commands/util/MERGE_SCHEMA_SET.md for more info.
 - `imod util query` - Executes an ECSql query against the iModel specified by the `--imodel-path` argument.  Query loaded from the file specified by `--query-path`, query saved to the file specified by `--results-path` formatted as csv.  Query performance statistics (rows returned, CPU/total time, memory used, retries) are printed to the console after the query runs.
-- `imod util partinate` - Modifies GeometricElement3D elements with GeometryStream properties greater than `--blob-size` so their geometry is stored in a GeometryPart instead of directly in the GeometryStream property on the element.  See [PARTINATE.md](./commands/util/PARTINATE.md).
+- `imod util partinate` - Modifies GeometricElement3D elements with GeometryStream properties greater than `--blob-size` so their geometry is stored in a GeometryPart instead of directly in the GeometryStream property on the element.  See ./commands/util/PARTINATE.md for more info.
