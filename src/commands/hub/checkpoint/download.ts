@@ -46,7 +46,7 @@ export async function runDownloadCheckpoint(args: DownloadCheckpointArgs): Promi
 
   const changeset = args.changesetId
     ? { id: args.changesetId }
-    : await getHubAccess().getLatestChangeset({ accessToken, iModelId: imodelId });
+    : await getHubAccess().getLatestChangeset({ iModelId: imodelId });
 
   const targetDir = path.join(ensureIModelCacheDir(imodelId), "checkpoints");
   const fileName = path.join(targetDir, `${imodelId}_${changeset.id}.bim`);

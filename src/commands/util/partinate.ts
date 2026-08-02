@@ -15,8 +15,8 @@ import {
   type GeometryPartProps,
 } from "@itwin/core-common";
 import { startIModelHost } from "../../host/imodel-host";
+import { noopAuthClient } from "../../auth/noop-auth-client";
 import { Id64, IModelStatus, type Id64String } from "@itwin/core-bentley";
-import { mock } from "node:test";
 
 export const DEFAULT_BLOB_SIZE = 4 * 1024; // 4 KiB
 
@@ -273,10 +273,6 @@ function summarizeSkips(result: PartinateResult): string {
   );
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
-
-const noopAuthClient: AuthorizationClient = {
-  getAccessToken: async () => "TEST_TOKEN",
-};
 
 export const partinateCommand: CommandModule<unknown, PartinateArgs> = {
   command: "partinate",

@@ -1,6 +1,6 @@
 {
   "name": "imodulator-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "iModulator CLI tool (imod) for working with iTwin.js iModels",
   "type": "commonjs",
   "bin": {
@@ -30,6 +30,7 @@
     "@itwin/ecschema-rpcinterface-common": "^5.0.0",
     "@itwin/ecschema-rpcinterface-impl": "^5.0.0",
     "@itwin/imodels-access-backend": "^6.0.0",
+    "@itwin/imodels-client-authoring": "^6.0.0",
     "@itwin/imodels-client-management": "^6.0.0",
     "@itwin/node-cli-authorization": "^3.0.0",
     "better-sqlite3": "^12.0.0",
