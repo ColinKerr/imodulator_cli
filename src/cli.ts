@@ -8,6 +8,8 @@ import { releaseIdCommand } from "./commands/hub/briefcase/release-id";
 import { downloadBriefcaseCommand } from "./commands/hub/briefcase/download";
 import { pushBriefcaseCommand } from "./commands/hub/briefcase/push";
 import { downloadCheckpointCommand } from "./commands/hub/checkpoint/download";
+import { downloadManifestCommand } from "./commands/hub/manifest/download";
+import { listManifestCommand } from "./commands/hub/manifest/list";
 import { cloneIModelCommand } from "./commands/hub/clone";
 import { createIModelCommand } from "./commands/hub/create";
 import { clearLocalCommand } from "./commands/local/clear";
@@ -52,6 +54,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
             command: "checkpoint <action>",
             describe: "Work with iModel checkpoints",
             builder: (yy) => yy.command(downloadCheckpointCommand).demandCommand(1),
+            handler: () => {},
+          })
+          .command({
+            command: "manifest <action>",
+            describe: "Work with Cloud Backed SQLite manifests for iModels",
+            builder: (yy) => yy.command(downloadManifestCommand).command(listManifestCommand).demandCommand(1),
             handler: () => {},
           })
           .demandCommand(1),

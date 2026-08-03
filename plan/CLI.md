@@ -35,6 +35,13 @@ Commands to work with iModel checkpoints used for read only tasks
 
 - `imod hub checkpoint download` - Downloads the most recent checkpoint for the iModel specified by the `--itwin-id`, and `--imodel-id` parameters.  Alternatively `--url` can be set to a URL containing two GUIDs (the first the iTwin id, the second the iModel id), which replaces the `--itwin-id` and `--imodel-id` parameters.  Optionally `--changeset-id` can be used to specify the version of the checkpoint to download.
 
+### manifest
+
+Commands to work with Cloud Backed SQLite manifests for iModels.
+
+- `imod hub manifest download` - Downloads the manifest for the iModel specified by the `--itwin-id` and `--imodel-id` parameters.  Alternatively `--url` can be set to a URL containing two GUIDs (the first the iTwin id, the second the iModel id), which replaces the `--itwin-id` and `--imodel-id` parameters.  If the manifest already exists the `--update` flag must be passed to download an updated copy.  See plan/commands/hub/MANIFEST_DOWNLOAD.md for more details.
+- `imod hub manifest list` - Lists the databases in the manifest file for the iModel specified by the `--imodel-id` parameter.  Alternatively `--manifest-path` can be set to the path of a manifest file to read, which replaces the `--imodel-id` parameter.  Deleted databases are listed with a `deleted` marker.  See plan/commands/hub/MANIFEST_LIST.md for more details.
+
 ## Local commands
 
 Commands under `imod local`

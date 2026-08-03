@@ -1,10 +1,9 @@
 import type { CommandModule } from "yargs";
 import { getCacheDb } from "../../cache/cache-db";
+import { formatTable, type TableData } from "../../format/table";
 
-export interface DbTableDump {
+export interface DbTableDump extends TableData {
   name: string;
-  columns: string[];
-  rows: unknown[][];
 }
 
 export function runListDb(): DbTableDump[] {
@@ -25,41 +24,6 @@ export function runListDb(): DbTableDump[] {
       rows: rows.map((r) => columns.map((c) => r[c])),
     };
   });
-}
-
-function formatCell(v: unknown): string {
-  if (v === null || v === undefined)
-    return "NULL";
-  if (typeof v === "string")
-    return v;
-  if (v instanceof Buffer)
-    return `<blob ${v.length}B>`;
-  return String(v);
-}
-
-function formatTable(table: DbTableDump): string {
-  const widths = table.columns.map((c) => c.length);
-  const cellRows = table.rows.map((row) => {
-    const cells = row.map(formatCell);
-    cells.forEach((cell, i) => {
-      if (cell.length > widths[i])
-        widths[i] = cell.length;
-    });
-    return cells;
-  });
-
-  const sep = `+${widths.map((w) => "-".repeat(w + 2)).join("+")}+`;
-  const renderRow = (cells: string[]) =>
-    `| ${cells.map((c, i) => c.padEnd(widths[i])).join(" | ")} |`;
-
-  const lines = [
-    sep,
-    renderRow(table.columns),
-    sep,
-    ...cellRows.map(renderRow),
-    sep,
-  ];
-  return lines.join("\n");
 }
 
 export const cacheListDbCommand: CommandModule = {

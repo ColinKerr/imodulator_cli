@@ -2,36 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(npm view *)",
-      "Bash(npm install *)",
       "Bash(npx tsc *)",
-      "Bash(node ./dist/imod.js --help)",
-      "Bash(node ./dist/imod.js hub briefcase --help)",
-      "Bash(node ./dist/imod.js cache list-imodels)",
-      "Bash(node ./dist/imod.js cache dir)",
-      "Bash(node ./dist/imod.js cache --help)",
-      "Bash(node ./dist/imod.js cache list-db)",
-      "Bash(node ./dist/imod.js util --help)",
-      "Bash(node ./dist/imod.js util export-schemas --help)",
-      "Bash(node ./dist/imod.js util merge-schemas --help)",
-      "Bash(node ./dist/imod.js hub --help)",
-      "Bash(node ./dist/imod.js hub clone --help)",
-      "Bash(node ./dist/imod.js hub create --help)",
+      "Bash(node ./dist/imod.js *)",
       "Bash(npm run *)",
-      "Bash(node ./dist/imod.js util query --help)",
-      "Bash(node ./dist/imod.js util partinate --help)",
       "Bash(node -p \"require\\('./package.json'\\).version\")",
       "Bash(node *)",
       "Bash(npm test *)",
-      "Bash(grep -vE \"Trace|Info \\\\||^\\\\s*$\")",
-      "Bash(grep -vE \"Trace|Info \\\\||npm notice|^\\\\s*$\")",
-      "Bash(grep -iE \"^react$|^vite$|web-viewer\")",
       "Bash(grep *)",
       "WebSearch",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:www.itwinjs.org)",
-      "Bash(npx vitest *)",
-      "Bash(grep -vE \"Trace|Info \\\\||npm notice|node-cli-auth|^\\\\s*$\")",
-      "Bash(grep -vE \"Trace|Info \\\\||npm notice|node-cli-auth|Query profiler|^\\\\s*$\")"
+      "Bash(npx vitest *)"
     ]
   }
 }

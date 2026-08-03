@@ -48,5 +48,12 @@ function initSchema(database: Database.Database): void {
       downloaded_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (imodel_id, changeset_id)
     );
+
+    CREATE TABLE IF NOT EXISTS downloaded_manifests (
+      imodel_id TEXT NOT NULL PRIMARY KEY,
+      file_path TEXT NOT NULL,
+      etag TEXT,
+      downloaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
