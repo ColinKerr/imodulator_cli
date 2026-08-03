@@ -2,10 +2,8 @@
  * Reader for the Cloud Backed SQLite `manifest.bcv` file.
  *
  * The format is an ad-hoc big-endian binary layout. These offsets come from the parser
- * itself -- `bcvManifestParse` in iModelCore/BeSQLite/SQLite/bcvutil.c -- not from the
- * constants in bcv_int.h: `BCV_MANIFEST_HEADER_BYTES` (20) and
- * `BCV_MANIFEST_DBHEADER_BYTES` (156) are *not* the offsets the parser uses, which are the
- * 24 and 152 below. See plan/commands/hub/MANIFEST_LIST.md.
+ * itself -- `bcvManifestParse` in iModelCore/BeSQLite/SQLite/bcvutil.c
+ * See plan/commands/hub/MANIFEST_LIST.md.
  */
 
 /** The only manifest version this reader understands. */

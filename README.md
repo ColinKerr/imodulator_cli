@@ -52,3 +52,11 @@ npm run imod hub briefcase push -- --imodel-id <iModelId> --briefcase-id <briefc
 ```
 
 You should now see a new changeset when you check your iModel online.
+
+Clone iModel 
+
+```bash
+npm run imod hub clone -- --imodel-id <source iModelId> --target-itwin-id <iTwinId> --name "Clone of My iModel"
+```
+
+> NOTE: If you are using partinate to improve performance you must clone the iModel after partination to see the performance benefit.
