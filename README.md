@@ -16,6 +16,13 @@ IMOD_REDIRECT_URI=http://localhost:3000/signin-callback
 IMOD_ISSUER_URL=https://ims.bentley.com
 ```
 
+Install packages and build:
+
+```bash
+npm install
+npm run build
+```
+
 ## Example workflow
 
 Authenticate
