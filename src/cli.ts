@@ -23,6 +23,7 @@ import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
 import { queryCommand } from "./commands/util/query";
+import { setFedGuidsCommand } from "./commands/util/set-fed-guids";
 import { vacuumCommand } from "./commands/util/vacuum";
 
 export async function runCli(argv: string[] = hideBin(process.argv)): Promise<void> {
@@ -107,6 +108,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(mergeSchemaSetCommand)
           .command(partinateCommand)
           .command(queryCommand)
+          .command(setFedGuidsCommand)
           .command(vacuumCommand)
           .demandCommand(1),
       handler: () => {},

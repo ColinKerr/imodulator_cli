@@ -79,3 +79,4 @@ Commands under `imod util`
 - `imod util query` - Executes an ECSql query against the iModel specified by the `--imodel-path` argument.  Query loaded from the file specified by `--query-path`, query saved to the file specified by `--results-path` formatted as csv.  Query performance statistics (rows returned, CPU/total time, memory used, retries) are printed to the console after the query runs.
 - `imod util partinate` - Modifies GeometricElement3D elements with GeometryStream properties greater than `--blob-size` so their geometry is stored in a GeometryPart instead of directly in the GeometryStream property on the element.  See ./commands/util/PARTINATE.md for more info.
 - `imod util vacuum` - Opens the iModel specified by `--imodel-path` then closes it with optimize flag set to true.  Runs vacuum and analyze.
+- `imod util set-fed-guids` - Sets all unset BisCore.Element.FederationGuid properties in the iModel specified by `--imodel-path`.
