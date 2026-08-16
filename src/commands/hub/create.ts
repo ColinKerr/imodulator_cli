@@ -76,14 +76,23 @@ export async function runCreateIModel(args: CreateIModelArgs): Promise<string> {
     return resumeCreateIModel(args, timeOutInMs);
 
   console.log(`Starting to create iModel '${args.name}' in iTwin ${args.itwinId}`);
-  console.log(`Waiting up to ${timeOutInMs / 60_000} minute(s) for the baseline file to initialize once uploaded.`);
+  console.log(`Process will wait up to ${timeOutInMs / 60_000} minutes after upload for initialization to complete.  Run again with '--resume' if it fails to finish in time.`);
 
-  return getHubAccess().createNewIModel({
+  // Phase timings: the upload is only one part of this, and knowing its share is the only way
+  // to tell whether tuning the upload is worth anything.
+  const startedAt = Date.now();
+  const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
+  console.log(`Preparing a copy of the baseline file...`);
+
+  const iModelId = await getHubAccess().createNewIModel({
     iTwinId: args.itwinId,
     iModelName: args.name,
     description: args.description,
     version0: args.seedFile,
   });
+
+  console.log(`iModel uploaded and initialized: ${iModelId}. Total time: ${elapsed()}.`);
+  return iModelId;
 }
 
 /**

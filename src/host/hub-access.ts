@@ -1,6 +1,7 @@
 import { IModelHost } from "@itwin/core-backend";
 import { BackendIModelsAccess } from "@itwin/imodels-access-backend";
 import type { AuthorizationCallback } from "@itwin/imodels-client-management";
+import { ReportingUploadClientStorage } from "./upload-storage";
 
 let instance: BackendIModelsAccess | undefined;
 
@@ -14,8 +15,9 @@ let instance: BackendIModelsAccess | undefined;
  * optional precisely for this: "If not present, use IModelHost.getAccessToken".
  */
 export function getHubAccess(): BackendIModelsAccess {
+  // Custom upload client used to report status and allow control of upload parameters.
   if (!instance)
-    instance = new BackendIModelsAccess();
+    instance = new BackendIModelsAccess({ cloudStorage: new ReportingUploadClientStorage() });
   return instance;
 }
 
