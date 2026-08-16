@@ -68,6 +68,7 @@ Commands under `imod edit`
 - `imod edit import-schemas` - Imports schemas found at `--schema-path` into the iModel specified by `--imodel-id` and `--briefcase-id`.  Error if the iModel briefcase is not already downloaded.
 - `imod edit partinate` - Partinates the briefcase specified by `--imodel-id` and `--briefcase-id` (see [PARTINATE.md](./commands/util/PARTINATE.md) for the `--blob-size` behaviour), saving the moved geometry as local changes that `imod hub briefcase push` can push to the hub.  Error if the iModel briefcase is not already downloaded.
 - `imod edit poke` - Updates the last mod date of the root model.  Error if the iModel briefcase is not already downloaded.
+- `imod edit update-profile` - Updates teh iModels profile to the latest supported by iTwin.js.  Updates the iModel specified by `--imodel-id` and `--briefcase-id`.  Error if the iModel briefcase is not already downloaded.  Reuses the code from `imod util update-profile` but applies appropriate db lock.
 
 
 ## Util commands
@@ -80,3 +81,4 @@ Commands under `imod util`
 - `imod util partinate` - Modifies GeometricElement3D elements with GeometryStream properties greater than `--blob-size` so their geometry is stored in a GeometryPart instead of directly in the GeometryStream property on the element.  See ./commands/util/PARTINATE.md for more info.
 - `imod util vacuum` - Opens the iModel specified by `--imodel-path` then closes it with optimize flag set to true.  Runs vacuum and analyze.
 - `imod util set-fed-guids` - Sets all unset BisCore.Element.FederationGuid properties in the iModel specified by `--imodel-path`.
+- `imod util update-profile` - Updates the iModels profile to the latest supported by iTwin.js. Updates iModel specified by `--imodel-path`.

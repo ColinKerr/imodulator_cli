@@ -19,11 +19,13 @@ import { cacheListDbCommand } from "./commands/cache/list-db";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
+import { editUpdateProfileCommand } from "./commands/edit/update-profile";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
 import { queryCommand } from "./commands/util/query";
 import { setFedGuidsCommand } from "./commands/util/set-fed-guids";
+import { updateProfileCommand } from "./commands/util/update-profile";
 import { vacuumCommand } from "./commands/util/vacuum";
 
 export async function runCli(argv: string[] = hideBin(process.argv)): Promise<void> {
@@ -85,6 +87,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(importSchemasCommand)
           .command(editPartinateCommand)
           .command(editPokeCommand)
+          .command(editUpdateProfileCommand)
           .demandCommand(1),
       handler: () => {},
     })
@@ -109,6 +112,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(partinateCommand)
           .command(queryCommand)
           .command(setFedGuidsCommand)
+          .command(updateProfileCommand)
           .command(vacuumCommand)
           .demandCommand(1),
       handler: () => {},
