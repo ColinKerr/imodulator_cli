@@ -82,3 +82,4 @@ Commands under `imod util`
 - `imod util vacuum` - Opens the iModel specified by `--imodel-path` then closes it with optimize flag set to true.  Runs vacuum and analyze.
 - `imod util set-fed-guids` - Sets all unset BisCore.Element.FederationGuid properties in the iModel specified by `--imodel-path`.
 - `imod util update-profile` - Updates the iModels profile to the latest supported by iTwin.js. Updates iModel specified by `--imodel-path`.
+- `imod util mapipulate` - Modifies mapping to move GeometryPart GeometryStreams into their own table.  Creates a new iModel based on the iModel specified by `--imodel-path`.  The flavor of mapping changes are controlled via the `--remap-type`.  See MAPIPULATE.md for details.

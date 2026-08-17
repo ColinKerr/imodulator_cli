@@ -21,6 +21,7 @@ import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
 import { editUpdateProfileCommand } from "./commands/edit/update-profile";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
+import { mapipulateCommand } from "./commands/util/mapipulate";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
 import { queryCommand } from "./commands/util/query";
@@ -108,6 +109,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
       builder: (y) =>
         y
           .command(exportSchemasCommand)
+          .command(mapipulateCommand)
           .command(mergeSchemaSetCommand)
           .command(partinateCommand)
           .command(queryCommand)
