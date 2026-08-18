@@ -1,7 +1,6 @@
 import type { CommandModule } from "yargs";
 import * as fs from "node:fs";
 import { BriefcaseDb, GeometryPart } from "@itwin/core-backend";
-import { DbResult, type Id64String } from "@itwin/core-bentley";
 import {
   Code,
   GeometryStreamBuilder,
@@ -46,56 +45,40 @@ export async function runPartinate(args: PartinateArgs): Promise<PartinateResult
     }
 
     console.log(`Found ${candidateIds.length} element(s) with GeometryStream blob larger than ${args.blobSize} bytes.`);
+    for (const elementId of candidateIds) {
+      const props = db.elements.getElementProps<GeometricElement3dProps>({
+        id: elementId,
+        wantGeometry: true,
+        wantBRepData: true,
+      });
 
-    if (candidateIds.length > 0) {
-      createTempPartMap(db);
-      // Pass 1: create part and save element -> part id mapping in a temp table.
-      for (const elementId of candidateIds) {
-        const props = db.elements.getElementProps<GeometricElement3dProps>({
-          id: elementId,
-          wantGeometry: true,
-          wantBRepData: true,
-        });
+      // Skip geometry streams that already contain a part reference
+      if (!props.geom || containsPartReference(props.geom)) {
+        result.skipped++;
+        continue;
+      }
 
-        // Skip geometry streams that already contain a part reference
-        if (!props.geom || containsPartReference(props.geom)) {
-          result.skipped++;
-          continue;
-        }
+      const partProps: GeometryPartProps = {
+        classFullName: GeometryPart.classFullName,
+        model: IModel.dictionaryId,
+        code: Code.createEmpty(),
+        geom: props.geom,
+      };
+      const partId = db.elements.insertElement(partProps);
+      result.partsCreated++;
 
-        const partProps: GeometryPartProps = {
-          classFullName: GeometryPart.classFullName,
-          model: IModel.dictionaryId,
-          code: Code.createEmpty(),
-          geom: props.geom,
-        };
-        const partId = db.elements.insertElement(partProps);
-        recordPartMapping(db, elementId, partId);
-        result.partsCreated++;
-        if (result.partsCreated % 7000 === 0) {
-          console.log(`Created ${result.partsCreated} part(s)...`);
-          db.saveChanges(`partinate: created ${result.partsCreated} parts`);
-        }
+      const builder = new GeometryStreamBuilder();
+      builder.appendGeometryPart3d(partId);
+      props.geom = builder.geometryStream;
+      db.elements.updateElement(props);
+      result.converted++;
+      if (result.converted % 7000 === 0) {
+        console.log(`Converted ${result.converted} element(s)...`);
+        db.saveChanges(`partinate: converted ${result.converted} elements`);
       }
     }
 
-    if (result.partsCreated > 0) {
-      db.saveChanges("partinate: parts created");
-
-      // Pass 2: replace each converted element's GeometryStream with a reference to its part.
-      for (const { elementId, partId } of readPartMappings(db)) {
-        const props = db.elements.getElementProps<GeometricElement3dProps>(elementId);
-        const builder = new GeometryStreamBuilder();
-        builder.appendGeometryPart3d(partId);
-        props.geom = builder.geometryStream;
-        db.elements.updateElement(props);
-        result.converted++;
-        if (result.converted % 7000 === 0) {
-          console.log(`Converted ${result.converted} element(s)...`);
-          db.saveChanges(`partinate: converted ${result.converted} elements`);
-        }
-      }
-
+    if (result.converted > 0) {
       console.log(`Converted ${result.converted} element(s) into ${result.partsCreated} part(s); skipped ${result.skipped} element(s). Saving changes...`);
       db.saveChanges("partinate complete");
       db.vacuum();
@@ -107,36 +90,6 @@ export async function runPartinate(args: PartinateArgs): Promise<PartinateResult
     db.close();
   }
   return result;
-}
-
-function createTempPartMap(db: BriefcaseDb): void {
-  db.withSqliteStatement(
-    "CREATE TEMP TABLE partinate_map (element_id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL)",
-    (stmt) => stmt.step(),
-  );
-}
-
-function recordPartMapping(db: BriefcaseDb, elementId: Id64String, partId: Id64String): void {
-  db.withPreparedSqliteStatement(
-    "INSERT INTO partinate_map (element_id, part_id) VALUES (?, ?)",
-    (stmt) => {
-      stmt.bindId(1, elementId);
-      stmt.bindId(2, partId);
-      stmt.step();
-    },
-  );
-}
-
-function readPartMappings(db: BriefcaseDb): { elementId: Id64String; partId: Id64String }[] {
-  return db.withSqliteStatement(
-    "SELECT element_id, part_id FROM partinate_map",
-    (stmt) => {
-      const mappings: { elementId: Id64String; partId: Id64String }[] = [];
-      while (stmt.step() === DbResult.BE_SQLITE_ROW)
-        mappings.push({ elementId: stmt.getValueId(0), partId: stmt.getValueId(1) });
-      return mappings;
-    },
-  );
 }
 
 /** Ids of GeometricElement3d elements whose GeometryStream exceeds blobSize bytes. */

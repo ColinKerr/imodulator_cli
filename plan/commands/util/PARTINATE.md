@@ -11,7 +11,7 @@ The command is specified by:
 
 - `--imodel-path` - path to the local iModel file (opened as a writable briefcase).
 - `--blob-size` - byte threshold; only elements whose stored `GeometryStream` blob is
-  larger than this are converted. Defaults to `102400` (100 KiB).
+  larger than this are converted. Defaults to `1024` (1 KiB).
 
 Partinate does **not** edit the underlying SQLite tables directly. `GeometryStream`
 blobs are serialized geometry and a `GeometryPart` requires proper BIS bookkeeping, so
