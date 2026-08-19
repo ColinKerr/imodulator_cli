@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { BriefcaseDb, PhysicalModel, SpatialCategory } from "@itwin/core-backend";
+import { BriefcaseDb, EditTxn, PhysicalModel, SpatialCategory } from "@itwin/core-backend";
 import {
   Code,
   GeometryStreamBuilder,
@@ -14,7 +14,7 @@ import {
 } from "@itwin/core-common";
 import { Box, Range3d } from "@itwin/core-geometry";
 import { DbResult } from "@itwin/core-bentley";
-import { countBySourceClass, resolvePropertyMap, runMapTransform } from "../../transform/map-transformer";
+import { countBySourceClass, resolvePropertyMap, runMapTransform, type MapTransformResult, type ResolvedClassMapping } from "../../transform/map-transformer";
 import type { ClassMapping } from "../../transform/mapping-file";
 import { closeCacheDb } from "../../cache/cache-db";
 import { HubMockFixture } from "../hub-mock-fixture";
@@ -217,6 +217,30 @@ function autoMapMapping(): ClassMapping {
   };
 }
 
+/**
+ * Run the transform in its own explicit EditTxn, as the command does, with implicit writes
+ * rejected for the duration. That is what proves every write in the transform really goes
+ * through the transaction: a single stray `db.elements.*` call throws instead of quietly
+ * succeeding through the implicit transaction.
+ */
+async function transform(db: BriefcaseDb, resolved: ResolvedClassMapping[]): Promise<MapTransformResult> {
+  const enforcement = EditTxn.implicitWriteEnforcement;
+  EditTxn.implicitWriteEnforcement = "throw";
+  const editTxn = new EditTxn(db, "test transform");
+  editTxn.start();
+  try {
+    const result = await runMapTransform(editTxn, resolved);
+    editTxn.end("save", "test transform");
+    return result;
+  } catch (err) {
+    if (editTxn.isActive)
+      editTxn.end("abandon");
+    throw err;
+  } finally {
+    EditTxn.implicitWriteEnforcement = enforcement;
+  }
+}
+
 describe("map-transformer", () => {
   describe("runMapTransform", () => {
     it("converts source elements to the target class in place and leaves a pushable changeset", async () => {
@@ -226,7 +250,7 @@ describe("map-transformer", () => {
       let result;
       try {
         const resolved = [await resolvePropertyMap(db, autoMapMapping())];
-        result = await runMapTransform(db, resolved);
+        result = await transform(db, resolved);
       } finally {
         db.close();
       }
@@ -256,7 +280,7 @@ describe("map-transformer", () => {
       let db = await BriefcaseDb.open({ fileName: seeded.fileName, readonly: false });
       try {
         const resolved = [await resolvePropertyMap(db, autoMapMapping())];
-        await runMapTransform(db, resolved);
+        await transform(db, resolved);
       } finally {
         db.close();
       }
@@ -294,7 +318,7 @@ describe("map-transformer", () => {
       let result;
       try {
         const resolved = [await resolvePropertyMap(db, autoMapMapping())];
-        result = await runMapTransform(db, resolved);
+        result = await transform(db, resolved);
       } finally {
         db.close();
       }
@@ -334,7 +358,7 @@ describe("map-transformer", () => {
           await resolvePropertyMap(db, aspectMapping()),
           await resolvePropertyMap(db, relationshipMapping()),
         ];
-        result = await runMapTransform(db, resolved);
+        result = await transform(db, resolved);
       } finally {
         db.close();
       }

@@ -1,4 +1,4 @@
-import type { Element, IModelDb } from "@itwin/core-backend";
+import type { EditTxn, Element, IModelDb } from "@itwin/core-backend";
 import { IModelTransformer } from "@itwin/imodel-transformer";
 import type { ElementAspectProps, ElementProps, RelationshipProps } from "@itwin/core-common";
 import { ECClass, EntityClass, SchemaItemType } from "@itwin/ecschema-metadata";
@@ -130,8 +130,12 @@ async function classifyKind(sourceClass: ECClass, displayName: string): Promise<
 class MapTransformer extends IModelTransformer {
   private readonly bySourceClass: Map<string, ResolvedClassMapping>;
 
-  public constructor(db: IModelDb, resolved: ResolvedClassMapping[]) {
-    super(db, db, { noProvenance: true, danglingReferencesBehavior: "reject" });
+  /** `editTxn` must already be started: the importer takes ownership of the write surface. */
+  public constructor(editTxn: EditTxn, resolved: ResolvedClassMapping[]) {
+    super(
+      { source: editTxn.iModel, target: editTxn },
+      { noProvenance: true, danglingReferencesBehavior: "reject" },
+    );
     this.bySourceClass = new Map(resolved.map((r) => [r.sourceClassFullName, r]));
   }
 
@@ -203,7 +207,7 @@ function remapNavValues(props: Record<string, unknown>, oldToNew: Map<string, st
  * the target class and deleting the original. Changes are saved every {@link BATCH_SIZE}
  * instances, yielding to the event loop between batches.
  */
-export async function runMapTransform(db: IModelDb, resolved: ResolvedClassMapping[]): Promise<MapTransformResult> {
+export async function runMapTransform(editTxn: EditTxn, resolved: ResolvedClassMapping[]): Promise<MapTransformResult> {
   const elementMappings = resolved.filter((r) => r.kind === "element");
   const relationshipMappings = resolved.filter((r) => r.kind === "relationship");
   const aspectMappings = resolved.filter((r) => r.kind === "aspect");
@@ -218,27 +222,27 @@ export async function runMapTransform(db: IModelDb, resolved: ResolvedClassMappi
     relationshipsConverted: 0,
   };
 
-  const oldToNew = await convertElements(db, elementMappings, perClass, result);
+  const oldToNew = await convertElements(editTxn, elementMappings, perClass, result);
 
   // Relationships and aspects reference elements, so re-class them after element ids settle.
   for (const mapping of relationshipMappings) {
-    const n = await reclassRelationships(db, mapping, oldToNew);
+    const n = await reclassRelationships(editTxn, mapping, oldToNew);
     perClass[mapping.sourceClassFullName] = n;
     result.relationshipsConverted += n;
   }
   for (const mapping of aspectMappings) {
-    const n = await reclassAspects(db, mapping, oldToNew);
+    const n = await reclassAspects(editTxn, mapping, oldToNew);
     perClass[mapping.sourceClassFullName] = n;
     result.aspectsConverted += n;
   }
 
-  db.saveChanges("transform using-map complete");
+  editTxn.saveChanges("transform using-map complete");
   return result;
 }
 
 /** Convert element mappings in place; returns the old-id to new-id map for downstream passes. */
 async function convertElements(
-  db: IModelDb,
+  editTxn: EditTxn,
   elementMappings: ResolvedClassMapping[],
   perClass: Record<string, number>,
   result: MapTransformResult,
@@ -250,7 +254,7 @@ async function convertElements(
   const convertIds: string[] = [];
   const convertSet = new Set<string>();
   for (const r of elementMappings) {
-    const ids = await queryInstanceIds(db, r.sourceClassFullName);
+    const ids = await queryInstanceIds(editTxn.iModel, r.sourceClassFullName);
     perClass[r.sourceClassFullName] = ids.length;
     for (const id of ids) {
       convertIds.push(id);
@@ -258,9 +262,9 @@ async function convertElements(
     }
   }
 
-  const transformer = new MapTransformer(db, elementMappings);
+  const transformer = new MapTransformer(editTxn, elementMappings);
   try {
-    for await (const row of db.createQueryReader("SELECT ECInstanceId FROM bis.Element")) {
+    for await (const row of editTxn.iModel.createQueryReader("SELECT ECInstanceId FROM bis.Element")) {
       const id = row[0] as string;
       if (!convertSet.has(id))
         transformer.context.remapElement(id, id);
@@ -271,21 +275,21 @@ async function convertElements(
       await transformer.processElement(id);
       oldToNew.set(id, transformer.context.findTargetElementId(id));
       if (++processed % BATCH_SIZE === 0)
-        await saveBatch(db, `transform using-map: converted ${processed} element(s)`);
+        await saveBatch(editTxn, `transform using-map: converted ${processed} element(s)`);
     }
 
     // Re-point inbound references onto the new elements before deleting the originals, so
     // nothing is left dangling (containment/parent references are already handled by the
     // transformer's child recursion).
-    const repointed = await repointInboundReferences(db, oldToNew);
+    const repointed = await repointInboundReferences(editTxn, oldToNew);
     result.navReferencesRepointed = repointed.navUpdated;
     result.linkRelationshipsRepointed = repointed.linksRepointed;
 
     let deleted = 0;
     for (const id of convertIds) {
-      db.elements.deleteElement(id);
+      editTxn.deleteElement(id);
       if (++deleted % BATCH_SIZE === 0)
-        await saveBatch(db, `transform using-map: removed ${deleted} original(s)`);
+        await saveBatch(editTxn, `transform using-map: removed ${deleted} original(s)`);
     }
   } finally {
     transformer.dispose();
@@ -296,11 +300,11 @@ async function convertElements(
 }
 
 /** Re-class every relationship instance of a source relationship class to its target class. */
-async function reclassRelationships(db: IModelDb, mapping: ResolvedClassMapping, oldToNew: Map<string, string>): Promise<number> {
-  const ids = await queryInstanceIds(db, mapping.sourceClassFullName);
+async function reclassRelationships(editTxn: EditTxn, mapping: ResolvedClassMapping, oldToNew: Map<string, string>): Promise<number> {
+  const ids = await queryInstanceIds(editTxn.iModel, mapping.sourceClassFullName);
   let n = 0;
   for (const id of ids) {
-    const original = db.relationships.getInstanceProps<RelationshipProps>(mapping.sourceClassFullName, id);
+    const original = editTxn.iModel.relationships.getInstanceProps<RelationshipProps>(mapping.sourceClassFullName, id);
     const newProps = { ...original } as unknown as Record<string, unknown>;
     delete newProps.id;
     newProps.classFullName = mapping.targetClassFullName;
@@ -309,34 +313,34 @@ async function reclassRelationships(db: IModelDb, mapping: ResolvedClassMapping,
       newProps.targetId = oldToNew.get(original.targetId) ?? original.targetId;
     }
     applyRenames(newProps, mapping.renames);
-    db.relationships.deleteInstance(original);
-    db.relationships.insertInstance(newProps as unknown as RelationshipProps);
+    editTxn.deleteRelationship(original);
+    editTxn.insertRelationship(newProps as unknown as RelationshipProps);
     if (++n % BATCH_SIZE === 0)
-      await saveBatch(db, `transform using-map: re-classed ${n} relationship(s)`);
+      await saveBatch(editTxn, `transform using-map: re-classed ${n} relationship(s)`);
   }
   return n;
 }
 
 /** Re-class every aspect instance of a source aspect class to its target class. */
-async function reclassAspects(db: IModelDb, mapping: ResolvedClassMapping, oldToNew: Map<string, string>): Promise<number> {
+async function reclassAspects(editTxn: EditTxn, mapping: ResolvedClassMapping, oldToNew: Map<string, string>): Promise<number> {
   const elementIds = new Set<string>();
-  const reader = db.createQueryReader(`SELECT Element.Id FROM ONLY ${toEcsqlClassName(mapping.sourceClassFullName)}`);
+  const reader = editTxn.iModel.createQueryReader(`SELECT Element.Id FROM ONLY ${toEcsqlClassName(mapping.sourceClassFullName)}`);
   for await (const row of reader)
     elementIds.add(row[0] as string);
 
   let n = 0;
   for (const elementId of elementIds) {
-    for (const aspect of db.elements.getAspects(elementId, mapping.sourceClassFullName)) {
+    for (const aspect of editTxn.iModel.elements.getAspects(elementId, mapping.sourceClassFullName)) {
       const props = aspect.toJSON() as unknown as Record<string, unknown>;
       const oldAspectId = props.id as string;
       delete props.id;
       props.classFullName = mapping.targetClassFullName;
       remapNavValues(props, oldToNew);
       applyRenames(props, mapping.renames);
-      db.elements.insertAspect(props as unknown as ElementAspectProps);
-      db.elements.deleteAspect(oldAspectId);
+      editTxn.insertAspect(props as unknown as ElementAspectProps);
+      editTxn.deleteAspect(oldAspectId);
       if (++n % BATCH_SIZE === 0)
-        await saveBatch(db, `transform using-map: re-classed ${n} aspect(s)`);
+        await saveBatch(editTxn, `transform using-map: re-classed ${n} aspect(s)`);
     }
   }
   return n;
@@ -394,7 +398,7 @@ async function discoverNavProps(db: IModelDb): Promise<NavPropRef[]> {
  * original id to its new id.
  */
 async function repointInboundReferences(
-  db: IModelDb,
+  editTxn: EditTxn,
   oldToNew: Map<string, string>,
 ): Promise<{ navUpdated: number; linksRepointed: number }> {
   const oldIds = [...oldToNew.keys()];
@@ -404,16 +408,16 @@ async function repointInboundReferences(
   let saves = 0;
   const flush = async (message: string): Promise<void> => {
     if (++saves % BATCH_SIZE === 0)
-      await saveBatch(db, message);
+      await saveBatch(editTxn, message);
   };
 
   let navUpdated = 0;
-  for (const np of await discoverNavProps(db)) {
+  for (const np of await discoverNavProps(editTxn.iModel)) {
     for (const chunk of chunked(oldIds, ID_CHUNK)) {
       const sql = `SELECT ECInstanceId, [${np.ecProp}].Id FROM [${np.schemaName}].[${np.className}] WHERE [${np.ecProp}].Id IN (${chunk.join(",")})`;
       const hits: { referencerId: string; oldTarget: string }[] = [];
       try {
-        for await (const row of db.createQueryReader(sql))
+        for await (const row of editTxn.iModel.createQueryReader(sql))
           hits.push({ referencerId: row[0] as string, oldTarget: row[1] as string });
       } catch {
         continue; // class not queryable for this property; skip
@@ -425,9 +429,9 @@ async function repointInboundReferences(
         const newTarget = oldToNew.get(hit.oldTarget);
         if (!newTarget)
           continue;
-        const props = db.elements.getElementProps(hit.referencerId) as unknown as Record<string, unknown>;
+        const props = editTxn.iModel.elements.getElementProps(hit.referencerId) as unknown as Record<string, unknown>;
         props[np.jsProp] = { id: newTarget, relClassName: np.relClassName };
-        db.elements.updateElement(props as unknown as ElementProps);
+        editTxn.updateElement(props as unknown as ElementProps);
         navUpdated++;
         await flush(`transform using-map: re-pointed ${navUpdated} reference(s)`);
       }
@@ -441,7 +445,7 @@ async function repointInboundReferences(
       const inList = chunk.join(",");
       const sql = `SELECT ECInstanceId, ec_classname(ECClassId, 's:c'), SourceECInstanceId, TargetECInstanceId FROM ${base} WHERE SourceECInstanceId IN (${inList}) OR TargetECInstanceId IN (${inList})`;
       try {
-        for await (const row of db.createQueryReader(sql))
+        for await (const row of editTxn.iModel.createQueryReader(sql))
           rowsById.set(row[0] as string, { cls: row[1] as string, src: row[2] as string, tgt: row[3] as string });
       } catch {
         break; // base class absent; move on
@@ -453,9 +457,9 @@ async function repointInboundReferences(
       if (newSrc === row.src && newTgt === row.tgt)
         continue;
       // Endpoints are immutable, so delete and re-insert with the new endpoints.
-      const props = db.relationships.getInstanceProps<RelationshipProps>(row.cls, id);
-      db.relationships.deleteInstance(props);
-      db.relationships.insertInstance({ classFullName: row.cls, sourceId: newSrc, targetId: newTgt } as RelationshipProps);
+      const props = editTxn.iModel.relationships.getInstanceProps<RelationshipProps>(row.cls, id);
+      editTxn.deleteRelationship(props);
+      editTxn.insertRelationship({ classFullName: row.cls, sourceId: newSrc, targetId: newTgt } as RelationshipProps);
       linksRepointed++;
       await flush(`transform using-map: re-pointed ${linksRepointed} relationship(s)`);
     }
@@ -471,7 +475,7 @@ function chunked<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-async function saveBatch(db: IModelDb, message: string): Promise<void> {
-  db.saveChanges(message);
+async function saveBatch(editTxn: EditTxn, message: string): Promise<void> {
+  editTxn.saveChanges(message);
   await new Promise((resolve) => setImmediate(resolve));
 }

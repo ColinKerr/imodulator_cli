@@ -1,5 +1,5 @@
 import type { CommandModule } from "yargs";
-import { BriefcaseDb } from "@itwin/core-backend";
+import { BriefcaseDb, EditTxn } from "@itwin/core-backend";
 import { startIModelHost } from "../../host/imodel-host";
 import { getCacheDb } from "../../cache/cache-db";
 import { loadMappingFile } from "../../transform/mapping-file";
@@ -69,7 +69,20 @@ export async function runUsingMap(args: UsingMapArgs): Promise<UsingMapResult> {
   try {
     await db.acquireSchemaLock();
     const resolved = await resolveAll(db, mapping.ElementMapping.ClassMappings);
-    const result = await runMapTransform(db, resolved);
+
+    // One explicit transaction spans the whole conversion, so a failure part way through
+    // abandons every change rather than leaving the briefcase half converted.
+    const editTxn = new EditTxn(db, "transform using-map");
+    editTxn.start();
+    let result;
+    try {
+      result = await runMapTransform(editTxn, resolved);
+    } catch (err) {
+      if (editTxn.isActive)
+        editTxn.end("abandon");
+      throw err;
+    }
+    editTxn.end("save", "transform using-map");
     return {
       dryRun: false,
       converted: result.converted,
