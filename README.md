@@ -16,6 +16,13 @@ IMOD_REDIRECT_URI=http://localhost:3000/signin-callback
 IMOD_ISSUER_URL=https://ims.bentley.com
 ```
 
+Install packages and build:
+
+```bash
+npm install
+npm run build
+```
+
 ## Example workflow
 
 Authenticate
@@ -53,4 +60,10 @@ npm run imod hub briefcase push -- --imodel-id <iModelId> --briefcase-id <briefc
 
 You should now see a new changeset when you check your iModel online.
 
-> NOTE: To see a performance impact you may need to clone the iModel post-partination to force a vacuum of the cloud SQLite blocks 
+Clone iModel 
+
+```bash
+npm run imod hub clone -- --imodel-id <source iModelId> --target-itwin-id <iTwinId> --name "Clone of My iModel"
+```
+
+> NOTE: If you are using partinate to improve performance you must clone the iModel after partination to see the performance benefit.

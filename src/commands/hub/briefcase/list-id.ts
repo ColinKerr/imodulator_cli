@@ -1,7 +1,6 @@
 import type { CommandModule } from "yargs";
 import { startIModelHost } from "../../../host/imodel-host";
 import { getHubAccess } from "../../../host/hub-access";
-import { getAccessToken } from "../../../auth/auth-client";
 
 export interface ListIdArgs {
   imodelId?: string;
@@ -14,10 +13,8 @@ export interface BriefcaseIdListing {
 
 export async function runListId(args: ListIdArgs): Promise<BriefcaseIdListing[]> {
   await startIModelHost();
-  const accessToken = await getAccessToken();
   if (args.imodelId) {
     const ids = await getHubAccess().getMyBriefcaseIds({
-      accessToken,
       iModelId: args.imodelId,
     });
     return [{ imodelId: args.imodelId, briefcaseIds: ids }];

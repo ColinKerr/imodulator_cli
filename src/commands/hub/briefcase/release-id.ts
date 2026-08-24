@@ -1,7 +1,6 @@
 import type { CommandModule } from "yargs";
 import { startIModelHost } from "../../../host/imodel-host";
 import { getHubAccess } from "../../../host/hub-access";
-import { getAccessToken } from "../../../auth/auth-client";
 import { getCacheDb } from "../../../cache/cache-db";
 
 export interface ReleaseIdArgs {
@@ -11,9 +10,7 @@ export interface ReleaseIdArgs {
 
 export async function runReleaseId(args: ReleaseIdArgs): Promise<void> {
   await startIModelHost();
-  const accessToken = await getAccessToken();
   await getHubAccess().releaseBriefcase({
-    accessToken,
     iModelId: args.imodelId,
     briefcaseId: args.briefcaseId,
   });

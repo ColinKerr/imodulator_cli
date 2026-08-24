@@ -1,7 +1,6 @@
 import type { CommandModule } from "yargs";
 import { startIModelHost } from "../../../host/imodel-host";
 import { getHubAccess } from "../../../host/hub-access";
-import { getAccessToken } from "../../../auth/auth-client";
 import { getCacheDb } from "../../../cache/cache-db";
 
 export interface acquireIdArgs {
@@ -10,9 +9,7 @@ export interface acquireIdArgs {
 
 export async function runacquireId(args: acquireIdArgs): Promise<number> {
   await startIModelHost();
-  const accessToken = await getAccessToken();
   const briefcaseId = await getHubAccess().acquireNewBriefcaseId({
-    accessToken,
     iModelId: args.imodelId,
   });
   getCacheDb()

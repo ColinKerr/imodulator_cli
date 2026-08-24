@@ -8,6 +8,8 @@ import { releaseIdCommand } from "./commands/hub/briefcase/release-id";
 import { downloadBriefcaseCommand } from "./commands/hub/briefcase/download";
 import { pushBriefcaseCommand } from "./commands/hub/briefcase/push";
 import { downloadCheckpointCommand } from "./commands/hub/checkpoint/download";
+import { downloadManifestCommand } from "./commands/hub/manifest/download";
+import { listManifestCommand } from "./commands/hub/manifest/list";
 import { cloneIModelCommand } from "./commands/hub/clone";
 import { createIModelCommand } from "./commands/hub/create";
 import { clearLocalCommand } from "./commands/local/clear";
@@ -18,11 +20,16 @@ import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
 import { usingMapCommand } from "./commands/transform/using-map";
+import { editUpdateProfileCommand } from "./commands/edit/update-profile";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
+import { mapipulateCommand } from "./commands/util/mapipulate";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
 import { cleanEsaCommand } from "./commands/util/clean/esa";
 import { queryCommand } from "./commands/util/query";
+import { setFedGuidsCommand } from "./commands/util/set-fed-guids";
+import { updateProfileCommand } from "./commands/util/update-profile";
+import { vacuumCommand } from "./commands/util/vacuum";
 
 export async function runCli(argv: string[] = hideBin(process.argv)): Promise<void> {
   await yargs(argv)
@@ -55,6 +62,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
             builder: (yy) => yy.command(downloadCheckpointCommand).demandCommand(1),
             handler: () => {},
           })
+          .command({
+            command: "manifest <action>",
+            describe: "Work with Cloud Backed SQLite manifests for iModels",
+            builder: (yy) => yy.command(downloadManifestCommand).command(listManifestCommand).demandCommand(1),
+            handler: () => {},
+          })
           .demandCommand(1),
       handler: () => {},
     })
@@ -77,6 +90,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(importSchemasCommand)
           .command(editPartinateCommand)
           .command(editPokeCommand)
+          .command(editUpdateProfileCommand)
           .demandCommand(1),
       handler: () => {},
     })
@@ -103,6 +117,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
       builder: (y) =>
         y
           .command(exportSchemasCommand)
+          .command(mapipulateCommand)
           .command(mergeSchemaSetCommand)
           .command(partinateCommand)
           .command(queryCommand)
@@ -112,6 +127,9 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
             builder: (yy) => yy.command(cleanEsaCommand).demandCommand(1),
             handler: () => {},
           })
+          .command(setFedGuidsCommand)
+          .command(updateProfileCommand)
+          .command(vacuumCommand)
           .demandCommand(1),
       handler: () => {},
     })
