@@ -1,12 +1,17 @@
 import type { IModelConnection } from "@itwin/core-frontend";
+import type { ECSqlReader } from "@itwin/core-common";
 import { createEditor } from "./editor";
 import { ResultsTable } from "./results-table";
 import { countQuery, explainQuery, toCsv, type ColumnInfo } from "./query-shape";
 import { emptySchemaInfo, loadSchemaInfo, type SchemaInfo } from "./schema-info";
+import { readChunk } from "./paging";
 import { listIModels, loadConfig, openIModel, startFrontend, type ConsoleConfig } from "./connection";
 
-/** Rows fetched for the table. Large enough to be useful, small enough to stay responsive. */
-const ROW_LIMIT = 10_000;
+/**
+ * Rows appended per fetch. The reader pages from the server itself, so this only decides how
+ * much is pulled forward at a time as the user scrolls.
+ */
+const PAGE_ROWS = 1_000;
 
 const $ = (id: string): HTMLElement => {
   const element = document.getElementById(id);
@@ -22,8 +27,16 @@ class Console {
   private historyAt = -1;
   private imodel?: IModelConnection;
   private schemaInfo: SchemaInfo = emptySchemaInfo();
-  private lastResult?: { columns: ColumnInfo[]; rows: unknown[][] };
+  private lastColumns: ColumnInfo[] = [];
+  /**
+   * The reader for the query on screen, kept alive so scrolling can pull further pages. It
+   * holds the server side cursor: each `step` resumes where the last one stopped.
+   */
+  private reader?: ECSqlReader;
+  private readerDone = false;
   private config: ConsoleConfig = { backendRunning: false };
+  /** True once the count query has reported the real total. */
+  private countIsExact = false;
 
   public async start(): Promise<void> {
     this.config = await loadConfig();
@@ -50,6 +63,12 @@ class Console {
     $("back").addEventListener("click", () => this.step(-1));
     $("forward").addEventListener("click", () => this.step(1));
     this.editor.onChange(() => this.updateButtons());
+    this.table.setRowsLoadedListener((total) => {
+      this.updateButtons();
+      if (this.countIsExact)
+        return;
+      $("count").textContent = `Count: ${total}+`;
+    });
     this.editor.onRun(() => void this.run());
     this.setupSplitter();
     window.addEventListener("resize", () => this.editor.layout());
@@ -154,11 +173,10 @@ class Console {
 
     try {
       const toRun = explain ? explainQuery(ecsql) : ecsql;
-      const reader = this.imodel.createQueryReader(toRun, undefined, { limit: { count: ROW_LIMIT } });
-      const rows: unknown[][] = [];
-      for await (const row of reader)
-        rows.push(row.toArray());
-      const metadata = await reader.getMetaData();
+      this.reader = this.imodel.createQueryReader(toRun);
+      this.readerDone = false;
+      const rows = await this.readChunk(PAGE_ROWS);
+      const metadata = await this.reader.getMetaData();
       const columns: ColumnInfo[] = metadata.map((column) => ({
         name: column.name,
         jsonName: column.jsonName,
@@ -167,21 +185,39 @@ class Console {
         className: column.className,
       }));
 
-      this.lastResult = { columns, rows };
-      this.table.setData({ columns, rows, classNames: this.schemaInfo.classNamesById });
+      this.lastColumns = columns;
+      this.table.setData({
+        columns,
+        rows,
+        classNames: this.schemaInfo.classNamesById,
+        loadMore: () => this.readChunk(PAGE_ROWS),
+      });
       this.status(explain ? "Explained" : "Ran");
       this.updateButtons();
 
-      if (!explain)
+      this.countIsExact = false;
+      if (!explain) {
         void this.updateCount(ecsql, rows.length);
-      else
+      } else {
+        this.countIsExact = true;
         $("count").textContent = `Count: ${rows.length}`;
+      }
     } catch (err) {
       this.table.clear();
-      this.lastResult = undefined;
+      this.reader = undefined;
+      this.readerDone = true;
       this.warn(err instanceof Error ? err.message : String(err));
       this.updateButtons();
     }
+  }
+
+  /** Take the next rows from the live reader, or none once the query has run out. */
+  private async readChunk(count: number): Promise<unknown[][]> {
+    if (!this.reader || this.readerDone)
+      return [];
+    const chunk = await readChunk(this.reader, count);
+    this.readerDone = chunk.done;
+    return chunk.rows;
   }
 
   /**
@@ -190,18 +226,19 @@ class Console {
    * a second execution.
    */
   private async updateCount(ecsql: string, fetched: number): Promise<void> {
-    $("count").textContent = `Count: ${fetched}${fetched === ROW_LIMIT ? "+" : ""} (counting...)`;
+    $("count").textContent = `Count: ${fetched}+ (counting...)`;
     try {
       const reader = this.imodel!.createQueryReader(countQuery(ecsql));
       for await (const row of reader) {
+        this.countIsExact = true;
         $("count").textContent = `Count: ${row.toArray()[0]}`;
         return;
       }
-      $("count").textContent = `Count: ${fetched}`;
     } catch {
-      // Not every query can be wrapped -- a pragma cannot -- so fall back to what was shown.
-      $("count").textContent = `Count: ${fetched}${fetched === ROW_LIMIT ? "+" : ""}`;
+      // Not every query can be wrapped -- a pragma cannot -- so fall back to rows loaded,
+      // which the table keeps updating as more arrive.
     }
+    $("count").textContent = `Count: ${this.table.rowCount}+`;
   }
 
   private remember(ecsql: string): void {
@@ -222,15 +259,18 @@ class Console {
   }
 
   private saveCsv(): void {
-    if (!this.lastResult)
+    if (this.table.rowCount === 0)
       return;
-    const csv = toCsv(this.lastResult.columns.map((column) => column.name), this.lastResult.rows);
+    // What is written is what has been loaded; scrolling further loads more.
+    const rows = [...this.table.rows];
+    const csv = toCsv(this.lastColumns.map((column) => column.name), rows);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = "results.csv";
     link.click();
     URL.revokeObjectURL(url);
+    this.status(`Saved ${rows.length} row(s) to results.csv`);
   }
 
   private setupSplitter(): void {

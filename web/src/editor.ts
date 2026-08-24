@@ -1,6 +1,22 @@
 import * as monaco from "monaco-editor";
+import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { formatEcsql } from "./format-ecsql";
 import type { SchemaInfo } from "./schema-info";
+
+/**
+ * Monaco loads its editor worker itself unless told how.
+ *
+ * Left unset, the worker fails with "Failed to resolve module specifier
+ * ../../../base/common/worker/webWorkerBootstrap.js" and the editor comes up blank. Only the
+ * base editor worker is needed here: the console registers no language service beyond its own
+ * tokenizer, completion and formatter, all of which run on the main thread.
+ */
+(self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+  getWorker: () => new EditorWorker(),
+};
+
+/** What a new console starts with, editor is set to be empty on load */
+const DEFAULT_QUERY = "";
 
 /** ECSql keywords for completion. Monaco's sql tokenizer colors these already. */
 const KEYWORDS = [
@@ -101,13 +117,17 @@ export function createEditor(container: HTMLElement): ConsoleEditor {
     fontSize: 13,
   });
 
+  // Set after construction rather than through the `value` option, which does not take
+  // effect here: the editor comes up with an empty model and no error.
+  editor.setValue(DEFAULT_QUERY);
+
   const runListeners: (() => void)[] = [];
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
     for (const listener of runListeners)
       listener();
   });
 
-  return {
+  const api: ConsoleEditor = {
     value: () => editor.getValue(),
     textToRun: () => {
       const selection = editor.getSelection();
@@ -125,4 +145,8 @@ export function createEditor(container: HTMLElement): ConsoleEditor {
     setSchemaInfo: (info) => { schemaInfo = info; },
     layout: () => editor.layout(),
   };
+
+  // A handle for debugging and for driving the console from automation.
+  (self as unknown as { __editor: unknown }).__editor = { api, editor };
+  return api;
 }

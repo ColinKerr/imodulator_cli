@@ -1,5 +1,5 @@
 import {
-  IModelApp, IModelConnection,
+  IModelConnection, NoRenderApp,
 } from "@itwin/core-frontend";
 import {
   BentleyCloudRpcManager, IModelReadRpcInterface, IModelTileRpcInterface,
@@ -49,13 +49,20 @@ export async function loadConfig(): Promise<ConsoleConfig> {
   return response.json() as Promise<ConsoleConfig>;
 }
 
-/** Point the RPC client at the backend and start the frontend. */
+/**
+ * Point the RPC client at the backend and start the frontend.
+ *
+ * NoRenderApp rather than IModelApp: the console draws a table, never graphics, and
+ * IModelApp.startup creates a render system that throws "Failed to obtain WebGL context"
+ * wherever WebGL is unavailable -- a headless browser, a VM, a remote desktop. Starting
+ * without one keeps the whole IModelApp API available, which is all the console uses.
+ */
 export async function startFrontend(backendUrl: string): Promise<void> {
   BentleyCloudRpcManager.initializeClient(
     { info: { title: "imodulator", version: "v1.0" }, uriPrefix: backendUrl },
     [IModelReadRpcInterface, IModelTileRpcInterface, ECSchemaRpcInterface],
   );
-  await IModelApp.startup({ applicationId: "imodulator-console" });
+  await NoRenderApp.startup({ applicationId: "imodulator-console" });
 }
 
 export interface OpenResponse {

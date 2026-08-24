@@ -94,6 +94,12 @@ The command bar contains:
     - Only enabled when there is text in the Query Editor.
   - Save Results button.  Saves the results for a query in a csv file.
     - Only enabled when there are results in the Results Table.
+- Right aligned
+  - Row Count - `Count:` is the count of the whole query formatted with a thousands separator. It comes from a second query that wraps the first as a derived table:
+    ```sql
+    SELECT COUNT(*) FROM (<the query>)
+    ```
+    The count query is run after the first page of real results is loaded. Queries that cannot be wrapped -- a pragma, for one -- fall back to the number of rows fetched.
 
 All buttons in the command bar should have an icon with hover text giving the name of the button.
 
@@ -105,51 +111,33 @@ Holds the Query Editor and Results Table controls separated by a resizable divid
 
 A Monaco based ECSql editor with auto complete.  Auto complete is driven by ECSql queries to the ECDbMeta schema.  Selected text is run when the run button is clicked or command/windows+enter is hit.
 
+#### Formatting
+
+A custom formatter is registered as a formatting provider for the `ecsql` language so it is integrated with the Monaco formatting system.
+
+The formatter breaks lines at the major clauses, joins and connectors, and leaves everything else (expressions, functions, sub-selects) exactly as written. String literals and bracketed identifiers are never touched.
+
 #### Schema info
 
 The Schema info is queried from the iModel using ECDbMeta queries and is exposed for use in the query editor and results table.
 
-### Results Table
+#### Results Table
 
 Shows either the rows from running the query or the results from explaining the query.  
 
 - Table has a header with the column name as specified in the ECSql query or returned as the underlying db.
-- Columns are resizable and are initially sized to show the entire header and the results from the first page of results.
+- Columns are resizable and are initially sized to show the entire header and the results from the first 100 rows.
 - Column values that overflow the column are truncated.  When a row has truncated data a chevron is shown that can expand the row to show the full results word wrapped to fit in the current column space.
-- Query result columns that are schema class or property ids specified by the query metadata should be augmented with the name of the schema class or property. e.g. `0x42 (BisCore.Element)` where the id `0x42` is normal text and the class name `(BisCore.Element)` is lighter.  The names are gathered using the Schema info gathered by the Query Editor.
+- Columns are annotated using the metadata `ECSqlReader.getMetaData()` returns
+- Query result columns that are class ids specified by the query metadata should be augmented with the name of the class. `ClassId` and `NavId` columns should have their class name shown.  e.g. `0x42 (BisCore.Element)` where the id `0x42` is normal text and the class name `(BisCore.Element)` is lighter.  The names are gathered using the Schema info gathered by the Query Editor.
+- Virtualized so only rows in the view exist int eh dom.
+
+##### Results Paging
+
+The Results Table loads a page at a time. The query reader is kept in the consoles state and used to request subsequent pages as the user scrolls.
+
+The first page is 1,000 rows and each scroll to the end pulls another page.
 
 
-## Row count
 
-`Count:` is the count of the whole query, not of the rows fetched. It comes from a second query
-that wraps the first as a derived table:
 
-```sql
-SELECT COUNT(*) FROM (<the query>)
-```
-
-That is a second execution, so it runs after the first page of rows is on screen and fills the
-count in when it lands. Queries that cannot be wrapped -- a pragma, for one -- fall back to the
-number of rows fetched.
-
-## Formatting
-
-Monaco has no SQL formatter. It registers `DocumentFormattingEditProvider` only for css, html and
-json; its SQL support is a Monarch tokenizer and a keyword list. The console therefore has its own,
-registered as a formatting provider for the `ecsql` language so the editor's own format action uses
-it too.
-
-It is deliberately conservative: it breaks lines at the major clauses, joins and connectors, and
-leaves everything else -- expressions, functions, sub-selects -- exactly as written. String
-literals and bracketed identifiers are never touched.
-
-## Results Table
-
-Virtualized by hand: only the rows in view exist in the DOM, so a large result renders in constant
-time. Columns are sized from the header and the first 100 rows, which is what a user sees first;
-measuring every row of a large result would cost more than it is worth.
-
-Class id columns are annotated using the metadata `ECSqlReader.getMetaData()` returns, not by
-guessing from column names: ECDb reports an `extendedType` of `ClassId` for class ids, `Id` for
-instance ids and `NavId` for navigation properties. The class name comes from the schema info the
-editor already loaded through ECDbMeta.

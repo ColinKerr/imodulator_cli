@@ -11,6 +11,11 @@ export interface TableData {
   rows: unknown[][];
   /** Class id to `Schema.Class`, used to annotate class id columns. */
   classNames: ReadonlyMap<string, string>;
+  /**
+   * Fetches the next rows from the server, or an empty array once the query is exhausted.
+   * Called as the viewport approaches the last loaded row.
+   */
+  loadMore?: () => Promise<unknown[][]>;
 }
 
 /**
@@ -26,6 +31,9 @@ export class ResultsTable {
   private readonly body: HTMLElement;
   private readonly header: HTMLElement;
   private data: TableData = { columns: [], rows: [], classNames: new Map() };
+  private loading = false;
+  private exhausted = false;
+  private onRowsLoaded?: (total: number) => void;
   private widths: number[] = [];
   private kinds: ColumnKind[] = [];
   private expanded = new Set<number>();
@@ -48,6 +56,7 @@ export class ResultsTable {
       // horizontal position has to be driven from here or the columns drift out of line.
       this.header.scrollLeft = this.viewport.scrollLeft;
       this.renderRows();
+      void this.loadMoreIfNeeded();
     });
   }
 
@@ -55,16 +64,70 @@ export class ResultsTable {
     return this.data.rows.length;
   }
 
+  /** Every row loaded so far, which is what "save results" writes. */
+  public get rows(): readonly unknown[][] {
+    return this.data.rows;
+  }
+
+  /** Called whenever more rows arrive, so the caller can report progress. */
+  public setRowsLoadedListener(listener: (total: number) => void): void {
+    this.onRowsLoaded = listener;
+  }
+
   public setData(data: TableData): void {
     this.data = data;
     this.kinds = data.columns.map(columnKind);
     this.widths = this.measureColumns();
     this.expanded.clear();
+    this.loading = false;
+    this.exhausted = data.loadMore === undefined;
     this.viewport.scrollTop = 0;
     this.renderHeader();
-    this.spacer.style.height = `${data.rows.length * ROW_HEIGHT}px`;
     this.sizeSpacer();
     this.renderRows();
+    // The first page may not fill the viewport, in which case no scroll event will ever fire
+    // to ask for the next one.
+    void this.loadMoreIfNeeded();
+  }
+
+  /**
+   * Pull the next rows when the viewport nears the end of what is loaded.
+   *
+   * The query reader is kept alive by the caller and pages from the server itself, so this
+   * only has to ask for more; each call resumes where the last one stopped.
+   */
+  private async loadMoreIfNeeded(): Promise<void> {
+    if (this.loading || this.exhausted || !this.data.loadMore)
+      return;
+
+    const loadedHeight = this.data.rows.length * ROW_HEIGHT;
+    const nearEnd = this.viewport.scrollTop + this.viewport.clientHeight >= loadedHeight - ROW_HEIGHT * OVERSCAN * 2;
+    if (!nearEnd)
+      return;
+
+    this.loading = true;
+    this.root.classList.add("loading-more");
+    try {
+      const more = await this.data.loadMore();
+      if (more.length === 0) {
+        this.exhausted = true;
+      } else {
+        this.data.rows.push(...more);
+        this.sizeSpacer();
+        this.renderRows();
+        this.onRowsLoaded?.(this.data.rows.length);
+      }
+    } catch {
+      // A failed fetch must not spin: stop asking rather than retry on every scroll event.
+      this.exhausted = true;
+    } finally {
+      this.loading = false;
+      this.root.classList.remove("loading-more");
+      // Loading a page may still leave the viewport near the end, so keep going until the
+      // rows outrun the scroll position or the query runs out.
+      if (!this.exhausted)
+        void this.loadMoreIfNeeded();
+    }
   }
 
   public clear(): void {
@@ -95,6 +158,7 @@ export class ResultsTable {
   private sizeSpacer(): void {
     const total = this.widths.reduce((sum, width) => sum + width, 0);
     this.spacer.style.width = `${total}px`;
+    this.spacer.style.height = `${this.data.rows.length * ROW_HEIGHT}px`;
   }
 
   private renderHeader(): void {
