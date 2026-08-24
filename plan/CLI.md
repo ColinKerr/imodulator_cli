@@ -77,3 +77,9 @@ Commands under `imod util`
 - `imod util merge-schema-set` - Merges schemas from the set found in `--schema-path` whose schema alias match the regex input via `--alias` and outputs the resulting schemas in `--out-path`.  `--gen-mapping` flag generates a mapping file that can be used by `imod transform using-map` to transform existing data.  See [MERGE_DETAILS.md](./commands/util/MERGE_SCHEMA_SET.md).
 - `imod util query` - Executes an ECSql query against the iModel specified by the `--imodel-path` argument.  Query loaded from the file specified by `--query-path`, query saved to the file specified by `--results-path` formatted as csv.  Query performance statistics (rows returned, CPU/total time, memory used, retries) are printed to the console after the query runs.
 - `imod util partinate` - Modifies GeometricElement3D elements with GeometryStream properties greater than `--blob-size` so their geometry is stored in a GeometryPart instead of directly in the GeometryStream property on the element.  See [PARTINATE.md](./commands/util/PARTINATE.md).
+
+### Clean commands
+
+Commands under `imod util clean`.  These commands cleanup drek in an iModel.
+
+- `imod util clean esa` - Cleans duplicate ExternalSourceAspects from the imodel specified by the `--imodel-path` argument.  See [ESA.md](./commands/util/clean/ESA.md).

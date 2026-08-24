@@ -21,6 +21,7 @@ import { usingMapCommand } from "./commands/transform/using-map";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
+import { cleanEsaCommand } from "./commands/util/clean/esa";
 import { queryCommand } from "./commands/util/query";
 
 export async function runCli(argv: string[] = hideBin(process.argv)): Promise<void> {
@@ -105,6 +106,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(mergeSchemaSetCommand)
           .command(partinateCommand)
           .command(queryCommand)
+          .command({
+            command: "clean <action>",
+            describe: "Clean drek out of an iModel",
+            builder: (yy) => yy.command(cleanEsaCommand).demandCommand(1),
+            handler: () => {},
+          })
           .demandCommand(1),
       handler: () => {},
     })
