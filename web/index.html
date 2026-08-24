@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>eyeModel Console</title>
+    <link rel="stylesheet" href="./console.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <span class="app-name">eyeModel Console</span>
+      <button id="pick" class="pick" title="Pick an iModel to open">
+        Pick iModel <span id="imodel-name" class="imodel-name">none open</span>
+      </button>
+      <span class="spacer"></span>
+      <button id="back" title="Previous query" disabled>◀</button>
+      <button id="forward" title="Next query" disabled>▶</button>
+    </header>
+
+    <div class="command-bar">
+      <button id="run" title="Run" disabled>▶ Run</button>
+      <button id="explain" title="Explain query" disabled>❔ Explain</button>
+      <button id="format" title="Format ECSql" disabled>❖ Format</button>
+      <button id="save" title="Save results as CSV" disabled>⭳ Save results</button>
+      <span id="status" class="status"></span>
+      <span class="spacer"></span>
+      <span id="count" class="count"></span>
+    </div>
+
+    <main id="content" class="content">
+      <section id="editor-pane" class="pane editor-pane"><div id="editor" class="editor"></div></section>
+      <div id="divider" class="divider" title="Drag to resize"></div>
+      <section id="results-pane" class="pane results-pane"><div id="results"></div></section>
+    </main>
+
+    <dialog id="picker" class="picker">
+      <h2>Open an iModel</h2>
+      <div id="picker-list" class="picker-list"></div>
+      <div class="picker-path-row">
+        <input id="picker-path-input" type="text" placeholder="…or paste a path to an iModel file" />
+        <button id="picker-open">Open</button>
+      </div>
+      <form method="dialog"><button>Cancel</button></form>
+    </dialog>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

@@ -13,6 +13,8 @@ import { listManifestCommand } from "./commands/hub/manifest/list";
 import { cloneIModelCommand } from "./commands/hub/clone";
 import { createIModelCommand } from "./commands/hub/create";
 import { clearLocalCommand } from "./commands/local/clear";
+import { serveBackendCommand } from "./commands/serve/backend";
+import { serveConsoleCommand } from "./commands/serve/console";
 import { cacheDirCommand } from "./commands/cache/dir";
 import { cacheListImodelsCommand } from "./commands/cache/list-imodels";
 import { cacheListDbCommand } from "./commands/cache/list-db";
@@ -80,6 +82,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
     .command({
       command: "serve <action>",
       describe: "Run local servers",
+      builder: (y) => y.command(serveBackendCommand).command(serveConsoleCommand).demandCommand(1),
       handler: () => {},
     })
     .command({
