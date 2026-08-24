@@ -11,7 +11,7 @@ Design mockup:
 ---------------------------------------------------------------------------------------------------------------------------------------
 | <Run button> <Explain button> <Format button> <Save results button>                                              Count: <Row count> |
 ---------------------------------------------------------------------------------------------------------------------------------------
-|                                                                                                                                     |
+|                                                                                                                        <ECSql help> |
 |                                                                                                                                     |
 |                                                                                                                                     |
 |                                                                                                                                     |
@@ -78,6 +78,11 @@ The top bar contains:
     paste a path to any other iModel.
 - Right aligned
   - Back and Forwards split buttons.  Clicking on the arrow goes back or forwards, clicking on the drop down shows the queries in back or forwards history list.
+    - Going back or forward loads that query into the Query Editor.  It does not run it: landing on an expensive query should not set it going.
+    - Each half is enabled on its own, so a direction with entries offers its menu even when the arrow is at the end of that direction.
+    - History records queries that were run.  Re-running the current entry is not a new point in history, and running a query after going back discards the entries ahead, as a browser's session history does.
+    - The pair is mirrored: Back is arrow then drop down, Forward is drop down then arrow, so the arrows sit on the outside and point away from each other.
+    - Menus list the nearest entries first, capped at 20, one line each with the full query as a tooltip.  They close on a second click of the same half, on a click elsewhere, or on Escape.
 
 ## Command bar
 
@@ -114,6 +119,28 @@ A Monaco based ECSql editor with auto complete.  Auto complete is driven by ECSq
 ECSql notes:
 - A Schema name or schema alias is a valid prefix for a class name.  e.g. BisCore.Element and bis.Element are both valid.  So schema name and schema alias must be valid keys to look up classes.
 - ecsql built in functions should be included in intellisense.  They can be found here: https://www.itwinjs.org/learning/ecsqlreference/ecsqlfunctions/
+
+#### Query Help
+
+The ECSql help button hovering in the upper right corner expands a side panel with the full ECSql Reference docs found here: https://www.itwinjs.org/learning/ecsqlreference/ or in itwinjs-core source here: docs/learning/ECSqlReference/index.md.
+
+The side panel can be pinned to stay open or if not it closes when the user clicks in the query editor text window.
+
+The docs are **vendored**, not fetched: `web/help/ecsqlreference` is a verbatim copy of that directory from itwinjs-core (MIT, notice in `web/help/LICENSE.md`, commit in `web/help/PROVENANCE.json`), refreshed with `npm run sync:ecsql-help -- <path-to-itwinjs-core>`. A console pointed at a local briefcase is normally offline, so the reference has to be there without a network.
+
+The build renders all 28 pages into a **single** HTML document (`build/ecsql-help.ts`, run as a Vite plugin so the dev server and a production build go through the same step). One document means every cross reference becomes a plain anchor within the panel, with no navigation to write, and the browser's own find searches the whole reference at once.
+
+- Heading ids are prefixed with their page -- `join--inner-join` -- because heading text repeats across pages; four of them have a `Returns` heading.
+- Links between pages become anchors, links out of the reference go to the pinned commit on GitHub, and external links open in a new tab.
+- **The build fails if a link no longer resolves.** These anchors are written by hand, so a heading renamed upstream would otherwise be invisible until someone clicked it. Links already broken upstream are listed in `KNOWN_BROKEN_LINKS` and fall back to the top of the page they point at.
+
+Panel behaviour:
+- It sits beside the panes rather than over them, so a pinned panel narrows the results instead of covering them.
+- Its left edge is a **resizable divider**: dragging it widens the reference and gives back the space when narrowed. It starts at 420px, will not go below 260px, and always leaves 320px for the editor and results. The divider lives inside the panel so it appears and disappears with it. A width chosen once holds for the rest of the session, including across closing and reopening.
+- Closing it also unpins it, so it never reopens in a state the user did not ask for.
+- Escape closes it on the same terms as a click in the editor: only when it is not pinned.
+- Anchor clicks are handled by the panel, not the browser, so following a link does not put a fragment on the console's own URL.
+- The document is fetched on first open and kept, since most sessions never ask for it.
 
 #### Formatting
 

@@ -1,0 +1,9 @@
+{
+  "source": "https://github.com/iTwin/itwinjs-core",
+  "path": "docs/learning/ecsqlreference",
+  "published": "https://www.itwinjs.org/learning/ecsqlreference/",
+  "commit": "9db2e325ea37864ddd6708cf8c609c7f4934f25a",
+  "committed": "2026-08-13T05:04:03Z",
+  "syncedAt": "2026-08-24",
+  "license": "MIT, see LICENSE.md"
+}

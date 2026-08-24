@@ -12,8 +12,17 @@
         Pick iModel <span id="imodel-name" class="imodel-name">none open</span>
       </button>
       <span class="spacer"></span>
-      <button id="back" title="Previous query" disabled>◀</button>
-      <button id="forward" title="Next query" disabled>▶</button>
+      <div class="split-button">
+        <button id="back" class="split-main" title="Previous query" disabled>◀</button>
+        <button id="back-menu" class="split-toggle" title="Earlier queries" aria-haspopup="menu" aria-expanded="false" disabled>▾</button>
+      </div>
+      <!-- Mirrored: the arrows sit on the outside of the pair, so Back and Forward point away
+           from each other and each menu hangs beside its own arrow. -->
+      <div class="split-button">
+        <button id="forward-menu" class="split-toggle" title="Later queries" aria-haspopup="menu" aria-expanded="false" disabled>▾</button>
+        <button id="forward" class="split-main" title="Next query" disabled>▶</button>
+      </div>
+      <div id="history-menu" class="history-menu" hidden></div>
     </header>
 
     <div class="command-bar">
@@ -26,11 +35,36 @@
       <span id="count" class="count"></span>
     </div>
 
-    <main id="content" class="content">
-      <section id="editor-pane" class="pane editor-pane"><div id="editor" class="editor"></div></section>
-      <div id="divider" class="divider" title="Drag to resize"></div>
-      <section id="results-pane" class="pane results-pane"><div id="results"></div></section>
-    </main>
+    <div class="work-area">
+      <main id="content" class="content">
+        <section id="editor-pane" class="pane editor-pane">
+          <div id="editor" class="editor"></div>
+          <!-- Hovers over the editor's upper right corner, inside the pane so it stays there
+               however the panes are resized. -->
+          <button id="help" class="help-button" title="ECSql reference" aria-expanded="false">?</button>
+        </section>
+        <div id="divider" class="divider" title="Drag to resize"></div>
+        <section id="results-pane" class="pane results-pane"><div id="results"></div></section>
+      </main>
+
+      <!-- In flow beside the panes rather than over them, so a pinned panel narrows the
+           results instead of covering them. -->
+      <aside id="help-panel" class="help-panel" aria-label="ECSql reference" hidden>
+        <!-- Inside the panel rather than beside it, so it appears and disappears with the
+             panel instead of needing its own visibility handling. -->
+        <div id="help-divider" class="help-divider" title="Drag to resize"></div>
+        <div class="help-main">
+          <div class="help-header">
+            <span class="help-title">ECSql Reference</span>
+            <span class="spacer"></span>
+            <button id="help-contents" class="help-action" title="Back to contents">☰</button>
+            <button id="help-pin" class="help-action" title="Pin open" aria-pressed="false">📌</button>
+            <button id="help-close" class="help-action" title="Close">✕</button>
+          </div>
+          <div id="help-body" class="help-body"></div>
+        </div>
+      </aside>
+    </div>
 
     <dialog id="picker" class="picker">
       <h2>Open an iModel</h2>

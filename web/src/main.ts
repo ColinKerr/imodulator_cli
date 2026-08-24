@@ -5,7 +5,12 @@ import { ResultsTable } from "./results-table";
 import { countQuery, explainQuery, toCsv, type ColumnInfo } from "./query-shape";
 import { emptySchemaInfo, loadSchemaInfo, type SchemaInfo } from "./schema-info";
 import { readChunk } from "./paging";
+import {
+  backEntries, canGoBack, canGoForward, emptyHistory, forwardEntries, jumpTo, remember,
+  step, summarize, type HistoryEntry, type QueryHistory,
+} from "./query-history";
 import { listIModels, loadConfig, openIModel, startFrontend, type ConsoleConfig } from "./connection";
+import { HelpPanel } from "./help-panel";
 
 /**
  * Rows appended per fetch. The reader pages from the server itself, so this only decides how
@@ -29,8 +34,7 @@ export function formatCount(n: number): string {
 class Console {
   private readonly editor = createEditor($("editor"));
   private readonly table = new ResultsTable($("results"));
-  private readonly history: string[] = [];
-  private historyAt = -1;
+  private history: QueryHistory = emptyHistory();
   private imodel?: IModelConnection;
   private schemaInfo: SchemaInfo = emptySchemaInfo();
   private lastColumns: ColumnInfo[] = [];
@@ -68,6 +72,13 @@ class Console {
     $("pick").addEventListener("click", () => void this.showPicker());
     $("back").addEventListener("click", () => this.step(-1));
     $("forward").addEventListener("click", () => this.step(1));
+    $("back-menu").addEventListener("click", (event) => this.toggleHistoryMenu(event, "back"));
+    $("forward-menu").addEventListener("click", (event) => this.toggleHistoryMenu(event, "forward"));
+    document.addEventListener("click", () => this.closeHistoryMenu());
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape")
+        this.closeHistoryMenu();
+    });
     this.editor.onChange(() => this.updateButtons());
     this.table.setRowsLoadedListener((total) => {
       this.updateButtons();
@@ -76,6 +87,16 @@ class Console {
       $("count").textContent = `Count: ${total}+`;
     });
     this.editor.onRun(() => void this.run());
+    // The reference is independent of the iModel, so it is wired up whether or not one is
+    // open -- there is nothing to look up a query against until you have read how to write it.
+    new HelpPanel(
+      {
+        panel: $("help-panel"), body: $("help-body"), button: $("help"),
+        contents: $("help-contents"), pin: $("help-pin"), close: $("help-close"),
+        divider: $("help-divider"), editor: $("editor"),
+      },
+      () => this.editor.layout(),
+    );
     this.setupSplitter();
     window.addEventListener("resize", () => this.editor.layout());
     this.editor.layout();
@@ -93,8 +114,13 @@ class Console {
     ($("explain") as HTMLButtonElement).disabled = !hasText || !connected;
     ($("format") as HTMLButtonElement).disabled = !hasText;
     ($("save") as HTMLButtonElement).disabled = this.table.rowCount === 0;
-    ($("back") as HTMLButtonElement).disabled = this.historyAt <= 0;
-    ($("forward") as HTMLButtonElement).disabled = this.historyAt >= this.history.length - 1;
+    const back = canGoBack(this.history);
+    const forward = canGoForward(this.history);
+    ($("back") as HTMLButtonElement).disabled = !back;
+    ($("forward") as HTMLButtonElement).disabled = !forward;
+    // Each half is enabled on its own: a menu is only worth opening if it has entries.
+    ($("back-menu") as HTMLButtonElement).disabled = backEntries(this.history).length === 0;
+    ($("forward-menu") as HTMLButtonElement).disabled = forwardEntries(this.history).length === 0;
   }
 
   private warn(message: string): void {
@@ -248,20 +274,72 @@ class Console {
   }
 
   private remember(ecsql: string): void {
-    if (this.history[this.historyAt] === ecsql)
-      return;
-    this.history.splice(this.historyAt + 1);
-    this.history.push(ecsql);
-    this.historyAt = this.history.length - 1;
+    this.history = remember(this.history, ecsql);
   }
 
   private step(delta: number): void {
-    const next = this.historyAt + delta;
-    if (next < 0 || next >= this.history.length)
-      return;
-    this.historyAt = next;
-    this.status(this.history[next]);
+    this.goTo(step(this.history, delta));
+  }
+
+  /**
+   * Move to a point in history and load that query into the editor.
+   *
+   * Loading is the whole point of going back, so this replaces whatever is in the editor --
+   * as a browser's Back does. It does not run the query: landing on an expensive one should
+   * not set it going.
+   */
+  private goTo(history: QueryHistory): void {
+    this.history = history;
+    const query = this.history.entries[this.history.at];
+    if (query !== undefined)
+      this.editor.setValue(query);
+    this.closeHistoryMenu();
     this.updateButtons();
+  }
+
+  private toggleHistoryMenu(event: MouseEvent, direction: "back" | "forward"): void {
+    // The document listener that closes the menu would otherwise close this one immediately.
+    event.stopPropagation();
+    const menu = $("history-menu");
+    const button = event.currentTarget as HTMLElement;
+    const alreadyOpen = !menu.hidden && menu.dataset.direction === direction;
+    this.closeHistoryMenu();
+    if (alreadyOpen)
+      return;
+
+    const entries: HistoryEntry[] =
+      direction === "back" ? backEntries(this.history) : forwardEntries(this.history);
+    if (entries.length === 0)
+      return;
+
+    menu.replaceChildren();
+    for (const entry of entries) {
+      const item = document.createElement("button");
+      item.className = "history-entry";
+      item.textContent = summarize(entry.query);
+      item.title = entry.query;
+      item.addEventListener("click", (click) => {
+        click.stopPropagation();
+        this.goTo(jumpTo(this.history, entry.at));
+      });
+      menu.appendChild(item);
+    }
+
+    const bounds = button.getBoundingClientRect();
+    menu.dataset.direction = direction;
+    menu.style.top = `${bounds.bottom + 2}px`;
+    menu.hidden = false;
+    // Placed after unhiding so the menu's real width is known before it is nudged on screen.
+    menu.style.left = `${Math.max(4, Math.min(bounds.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 4))}px`;
+    button.setAttribute("aria-expanded", "true");
+  }
+
+  private closeHistoryMenu(): void {
+    const menu = $("history-menu");
+    menu.hidden = true;
+    delete menu.dataset.direction;
+    for (const id of ["back-menu", "forward-menu"])
+      $(id).setAttribute("aria-expanded", "false");
   }
 
   private saveCsv(): void {

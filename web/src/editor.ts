@@ -32,6 +32,8 @@ export interface ConsoleEditor {
   /** The text to run: the selection if there is one, otherwise everything. */
   textToRun(): string;
   value(): string;
+  /** Replace the editor's content, as loading a query from history does. */
+  setValue(text: string): void;
   format(): void;
   onChange(listener: () => void): void;
   onRun(listener: () => void): void;
@@ -172,6 +174,7 @@ export function createEditor(container: HTMLElement): ConsoleEditor {
 
   const api: ConsoleEditor = {
     value: () => editor.getValue(),
+    setValue: (text) => editor.setValue(text),
     textToRun: () => {
       const selection = editor.getSelection();
       const selected = selection && !selection.isEmpty() ? editor.getModel()?.getValueInRange(selection) : undefined;

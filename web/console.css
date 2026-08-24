@@ -13,6 +13,26 @@ button:disabled { color: #b4b9bd; cursor: default; }
 button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
 .pick { display: flex; gap: 6px; align-items: baseline; }
 .imodel-name { color: var(--muted); max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The two halves read as one control: shared border, no gap, rounded only at the outer edges. */
+.split-button { display: flex; }
+/* Rounded by position rather than by role, because Forward puts its halves the other way
+   round: the arrow is on the outside of each pair. */
+.split-button > button { border-radius: 0; }
+.split-button > button:first-child { border-radius: 4px 0 0 4px; border-right-width: 0; }
+.split-button > button:last-child { border-radius: 0 4px 4px 0; }
+.split-button > .split-main { padding: 4px 8px; }
+.split-button > .split-toggle { padding: 4px 5px; color: var(--muted); }
+.split-button > button:not(:disabled):hover { background: #eef4fc; }
+
+.history-menu { position: fixed; z-index: 20; min-width: 260px; max-width: 60vw; max-height: 50vh;
+  overflow: auto; padding: 4px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.14); }
+.history-menu[hidden] { display: none; }
+.history-entry { display: block; width: 100%; text-align: left; border: none; border-radius: 3px;
+  padding: 4px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-entry:hover { background: #eef4fc; }
+
 .status { color: var(--muted); margin-left: 8px; }
 .status.warning { color: #a5480a; }
 .count { font-variant-numeric: tabular-nums; }
@@ -20,9 +40,11 @@ button:not(:disabled):hover { border-color: var(--accent); color: var(--accent);
 /* Every element between the window and a scrolling pane needs min-width/min-height 0. A flex
    item defaults to min-width:auto, which refuses to shrink below its content, so one wide row
    would otherwise stretch the whole layout. */
+.work-area { flex: 1; display: flex; min-height: 0; min-width: 0; }
 .content { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
 .pane { display: flex; min-height: 0; min-width: 0; overflow: hidden; }
-.editor-pane { flex: 0 0 50%; }
+/* Positioned so the help button can hover in its corner. */
+.editor-pane { flex: 0 0 50%; position: relative; }
 .editor { flex: 1; min-width: 0; }
 /* flex:0 0 6px, not height alone: as a flex item the divider would otherwise be shrunk by a
    pane demanding space, and the results pane's scrollbar would sit on top of it. */
@@ -58,6 +80,39 @@ button:not(:disabled):hover { border-color: var(--accent); color: var(--accent);
   box-shadow: 0 4px 12px rgba(0,0,0,.12); white-space: normal; overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; pointer-events: none; }
 .results-hover[hidden] { display: none; }
+
+/* Clear of Monaco's vertical scrollbar, which owns the last 14px of the editor. */
+.help-button { position: absolute; top: 8px; right: 18px; z-index: 5; width: 22px; height: 22px;
+  padding: 0; border-radius: 50%; line-height: 1; color: var(--muted); opacity: .75;
+  box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.help-button:hover { opacity: 1; }
+
+.help-panel { flex: 0 0 420px; display: flex; min-width: 0; background: var(--bg); }
+.help-panel[hidden] { display: none; }
+/* The panel's own left edge, and the same 6px flex-basis as the horizontal divider so a pane
+   demanding space cannot shrink it away. */
+.help-divider { flex: 0 0 6px; background: var(--bar); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: col-resize; }
+.help-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.help-header { display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: var(--bar); border-bottom: 1px solid var(--border); }
+.help-title { font-weight: 600; }
+.help-action { padding: 2px 6px; line-height: 1.2; }
+.help-action.pinned { border-color: var(--accent); background: #eef4fc; }
+/* The panel is the scroller; the document inside it is one long page. */
+.help-body { flex: 1; overflow: auto; padding: 0 14px 40px; }
+.help-body h1 { font-size: 17px; margin: 18px 0 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.help-page:first-child h1 { border-top: none; }
+.help-body h2 { font-size: 15px; margin: 16px 0 6px; }
+.help-body h3, .help-body h4 { font-size: 13px; margin: 12px 0 4px; }
+.help-body p, .help-body li { line-height: 1.5; }
+.help-body ul, .help-body ol { padding-left: 20px; }
+.help-body a { color: var(--accent); text-decoration: none; }
+.help-body a:hover { text-decoration: underline; }
+.help-body code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #f2f4f6; border-radius: 3px; padding: 1px 3px; }
+.help-body pre { background: #f7f8f9; border: 1px solid var(--border); border-radius: 4px; padding: 8px; overflow-x: auto; }
+.help-body pre code { background: none; padding: 0; }
+.help-body table { border-collapse: collapse; display: block; overflow-x: auto; }
+.help-body th, .help-body td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; }
+.help-body th { background: var(--bar); }
 
 .picker { border: 1px solid var(--border); border-radius: 6px; padding: 16px; min-width: 560px; }
 .picker h2 { margin: 0 0 10px; font-size: 15px; }
