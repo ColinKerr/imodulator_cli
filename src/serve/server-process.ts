@@ -16,10 +16,25 @@ interface ServerDefinition {
   label: string;
 }
 
+/**
+ * Declared dependents first: the console queries the backend, so stopping everything works
+ * through this in order and never leaves a live console pointing at a stopped backend.
+ */
 const SERVERS: Record<ServerKind, ServerDefinition> = {
-  backend: { entry: "backend-main.js", label: "backend server" },
   console: { entry: "console-main.js", label: "console" },
+  backend: { entry: "backend-main.js", label: "backend server" },
 };
+
+/**
+ * Every kind of server, derived rather than listed, so a new one cannot be added without
+ * `imod serve stop-all` picking it up.
+ */
+export const SERVER_KINDS = Object.keys(SERVERS) as ServerKind[];
+
+/** The name used for a server in messages. */
+export function serverLabel(kind: ServerKind): string {
+  return SERVERS[kind].label;
+}
 
 export interface ServerRecord {
   kind: ServerKind;

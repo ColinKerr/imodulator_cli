@@ -1,7 +1,9 @@
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { formatEcsql } from "./format-ecsql";
-import type { SchemaInfo } from "./schema-info";
+import { ECSQL_FUNCTIONS } from "./ecsql-functions";
+import { parseTableAliases } from "./table-aliases";
+import { classesFor, propertiesFor, propertiesForClassName, type SchemaInfo } from "./schema-info";
 
 /**
  * Monaco loads its editor worker itself unless told how.
@@ -82,25 +84,66 @@ export function createEditor(container: HTMLElement): ConsoleEditor {
       });
 
       const suggestions: monaco.languages.CompletionItem[] = [];
+      const add = (
+        label: string,
+        kind: monaco.languages.CompletionItemKind,
+        insertText: string,
+        detail?: string,
+        documentation?: string,
+      ): void => {
+        suggestions.push({ label, kind, insertText, detail, documentation, range });
+      };
+
       const qualifier = /([A-Za-z_]\w*)\.(?:[A-Za-z_]\w*)?$/.exec(line)?.[1];
 
       if (qualifier && schemaInfo) {
-        // After `Schema.` offer that schema's classes; after `Class.` offer its properties.
-        for (const className of schemaInfo.classesBySchema.get(qualifier) ?? [])
-          suggestions.push({ label: className, kind: monaco.languages.CompletionItemKind.Class, insertText: className, range });
-        for (const [classKey, properties] of schemaInfo.propertiesByClass) {
-          if (!classKey.endsWith(`.${qualifier}`))
-            continue;
-          for (const property of properties)
-            suggestions.push({ label: property, kind: monaco.languages.CompletionItemKind.Field, insertText: property, range });
+        // A table alias is a local binding, so it takes precedence over a schema of the same
+        // name: inside `FROM bis.Element bis`, `bis.` means the element, not the schema.
+        const table = parseTableAliases(model.getValue()).get(qualifier.toLowerCase());
+        if (table) {
+          for (const property of propertiesFor(schemaInfo, table.prefix, table.className))
+            add(property, monaco.languages.CompletionItemKind.Field, property, `${table.prefix}.${table.className}`);
+          if (suggestions.length > 0)
+            return { suggestions };
         }
+
+        // Then a schema, by name or by alias: both are valid prefixes for a class.
+        for (const className of classesFor(schemaInfo, qualifier))
+          add(className, monaco.languages.CompletionItemKind.Class, className, qualifier);
+
+        // Failing that, a bare class name, whichever schema it belongs to.
+        if (suggestions.length === 0) {
+          for (const property of propertiesForClassName(schemaInfo, qualifier))
+            add(property, monaco.languages.CompletionItemKind.Field, property, qualifier);
+        }
+
+        if (suggestions.length > 0)
+          return { suggestions };
       }
 
-      if (suggestions.length === 0) {
-        for (const keyword of KEYWORDS)
-          suggestions.push({ label: keyword, kind: monaco.languages.CompletionItemKind.Keyword, insertText: keyword, range });
-        for (const schemaName of schemaInfo?.classesBySchema.keys() ?? [])
-          suggestions.push({ label: schemaName, kind: monaco.languages.CompletionItemKind.Module, insertText: schemaName, range });
+      for (const keyword of KEYWORDS)
+        add(keyword, monaco.languages.CompletionItemKind.Keyword, keyword);
+
+      for (const schema of schemaInfo?.schemas ?? []) {
+        add(schema.name, monaco.languages.CompletionItemKind.Module, schema.name, "schema");
+        if (schema.alias && schema.alias !== schema.name)
+          add(schema.alias, monaco.languages.CompletionItemKind.Module, schema.alias, `alias of ${schema.name}`);
+      }
+
+      // The aliases this query itself declares, so `e` can be completed as well as `e.`.
+      for (const table of parseTableAliases(model.getValue()).values())
+        add(table.alias, monaco.languages.CompletionItemKind.Variable, table.alias, `${table.prefix}.${table.className}`);
+
+      for (const fn of ECSQL_FUNCTIONS) {
+        suggestions.push({
+          label: fn.name,
+          kind: monaco.languages.CompletionItemKind.Function,
+          insertText: fn.snippet,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          detail: fn.signature,
+          documentation: fn.description,
+          range,
+        });
       }
 
       return { suggestions };

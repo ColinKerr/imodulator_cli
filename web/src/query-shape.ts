@@ -41,21 +41,31 @@ export type ColumnKind = "classId" | "id" | "navId" | "plain";
 /**
  * Classify a column from its metadata.
  *
- * ECDb reports an extended type of `ClassId` for class ids, `Id` for instance ids and `NavId`
- * for navigation properties, which is what distinguishes an id column from an ordinary
- * number without guessing from the column's name.
+ * A navigation property is identified by its type name, not its extended type: measured
+ * against a real iModel, `Model` and `Parent` come back as `typeName: "navigation"` with no
+ * extended type at all. `NavId` is the extended type of the ECDbMeta *system* property, which
+ * is not what a SELECT of a navigation property reports.
+ *
+ * Ids are the other way round: `ClassId` for a class id and `Id` for an instance id, which is
+ * what tells them from an ordinary number without guessing from the column's name.
  */
 export function columnKind(column: ColumnInfo): ColumnKind {
+  if (column.typeName === "navigation" || column.extendedType === "NavId")
+    return "navId";
   switch (column.extendedType) {
     case "ClassId":
       return "classId";
-    case "NavId":
-      return "navId";
     case "Id":
       return "id";
     default:
       return "plain";
   }
+}
+
+/** The shape a navigation property takes in a query result. */
+interface NavigationValue {
+  Id?: string;
+  RelECClassId?: string;
 }
 
 /** A class id rendered as `0x42 (BisCore.Element)`, with the name looked up separately. */
@@ -74,11 +84,55 @@ export function augmentValue(
     return { text: "" };
 
   const text = typeof value === "object" ? JSON.stringify(value) : String(value);
-  if (kind !== "classId")
-    return { text };
+  const named = (id: string | undefined): string | undefined =>
+    id === undefined ? undefined : classNames.get(id.toLowerCase());
 
-  const name = classNames.get(text.toLowerCase());
-  return name ? { text, annotation: `(${name})` } : { text };
+  if (kind === "classId") {
+    const name = named(text);
+    return name ? { text, annotation: `(${name})` } : { text };
+  }
+
+  if (kind === "navId" && typeof value === "object") {
+    // A navigation value carries the relationship's class id; naming it says what the
+    // reference *is*, which the raw `{"Id":...,"RelECClassId":...}` does not.
+    const name = named((value as NavigationValue).RelECClassId);
+    return name ? { text, annotation: `(${name})` } : { text };
+  }
+
+  return { text };
+}
+
+/**
+ * Roughly the width one character of the results font occupies, plus the cell's padding.
+ * Used only to decide whether a value fits its column; measuring each cell for real would
+ * cost a layout pass per row.
+ */
+const CHAR_WIDTH = 8;
+const CELL_PADDING = 24;
+
+/** Roughly how wide a value renders. */
+export function contentWidth(value: AugmentedValue): number {
+  return (value.text.length + (value.annotation?.length ?? 0)) * CHAR_WIDTH;
+}
+
+/** The width a column has for its content, once padding is taken. */
+function fittingWidth(columnWidth: number): number {
+  return columnWidth - CELL_PADDING;
+}
+
+/** Whether a value is too wide for its column, which is what gives the cell a hover. */
+export function isTruncated(value: AugmentedValue, columnWidth: number): boolean {
+  return contentWidth(value) > fittingWidth(columnWidth);
+}
+
+/**
+ * Whether a value is more than twice what the column can show.
+ *
+ * A hover is enough to read a value that only just overflows; past this the value wants the
+ * width of the whole row, so its row gets a chevron to expand in place.
+ */
+export function isExtraLong(value: AugmentedValue, columnWidth: number): boolean {
+  return contentWidth(value) > fittingWidth(columnWidth) * 2;
 }
 
 /** Escape one CSV cell, quoting only when it has to. */

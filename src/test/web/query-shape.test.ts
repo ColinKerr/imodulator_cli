@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  augmentValue, columnKind, countQuery, explainQuery, textToRun, toCsv,
+  augmentValue, columnKind, countQuery, explainQuery, isExtraLong, isTruncated, textToRun, toCsv,
 } from "../../../web/src/query-shape";
 import { formatEcsql } from "../../../web/src/format-ecsql";
 
@@ -46,6 +46,14 @@ describe("columnKind", () => {
   it("recognises the id extended types ECDb reports", () => {
     expect(columnKind({ ...base, extendedType: "ClassId" })).toBe("classId");
     expect(columnKind({ ...base, extendedType: "Id" })).toBe("id");
+  });
+
+  it("recognises a navigation property by its type name", () => {
+    // Measured against a real iModel: Model and Parent report typeName "navigation" and no
+    // extendedType at all, so keying off "NavId" alone would miss every one of them.
+    expect(columnKind({ ...base, name: "Model", typeName: "navigation" })).toBe("navId");
+    expect(columnKind({ ...base, typeName: "navigation", extendedType: undefined })).toBe("navId");
+    // The ECDbMeta system property does use the extended type, so both are accepted.
     expect(columnKind({ ...base, extendedType: "NavId" })).toBe("navId");
   });
 
@@ -64,6 +72,25 @@ describe("augmentValue", () => {
 
   it("leaves a class id alone when the name is unknown", () => {
     expect(augmentValue("0x99", "classId", names)).toEqual({ text: "0x99" });
+  });
+
+  it("names the relationship class of a navigation value", () => {
+    const relNames = new Map([["0x51", "BisCore.ModelContainsElements"]]);
+    const value = { Id: "0x1", RelECClassId: "0x51" };
+
+    expect(augmentValue(value, "navId", relNames)).toEqual({
+      text: '{"Id":"0x1","RelECClassId":"0x51"}',
+      annotation: "(BisCore.ModelContainsElements)",
+    });
+  });
+
+  it("leaves a navigation value alone when its relationship class is unknown", () => {
+    const value = { Id: "0x1", RelECClassId: "0x999" };
+    expect(augmentValue(value, "navId", names)).toEqual({ text: '{"Id":"0x1","RelECClassId":"0x999"}' });
+  });
+
+  it("handles a navigation value with no relationship class", () => {
+    expect(augmentValue({ Id: "0x1" }, "navId", names)).toEqual({ text: '{"Id":"0x1"}' });
   });
 
   it("never annotates a plain or instance id column", () => {
@@ -109,5 +136,49 @@ describe("formatEcsql", () => {
 
   it("returns empty input unchanged", () => {
     expect(formatEcsql("   ")).toBe("");
+  });
+});
+
+describe("isExtraLong", () => {
+  // A 200px column fits about 176px of text, so ~22 characters.
+  it("is false for a value that merely overflows, which a hover can show", () => {
+    const value = { text: "x".repeat(30) };
+    expect(isTruncated(value, 200)).toBe(true);
+    expect(isExtraLong(value, 200)).toBe(false);
+  });
+
+  it("is true past twice what the column fits, where a hover is not enough", () => {
+    const value = { text: "x".repeat(50) };
+    expect(isExtraLong(value, 200)).toBe(true);
+  });
+
+  it("is false for a value that fits", () => {
+    expect(isExtraLong({ text: "0x1" }, 200)).toBe(false);
+  });
+
+  it("counts the annotation, as truncation does", () => {
+    const value = { text: "0x51", annotation: "(BisCore.ModelContainsElements)".repeat(2) };
+    expect(isExtraLong(value, 120)).toBe(true);
+  });
+});
+
+describe("isTruncated", () => {
+  it("is false when the value fits its column", () => {
+    expect(isTruncated({ text: "0x1" }, 200)).toBe(false);
+  });
+
+  it("is true when the value is wider than its column", () => {
+    expect(isTruncated({ text: "x".repeat(60) }, 200)).toBe(true);
+  });
+
+  it("counts the annotation, which is drawn in the same cell", () => {
+    const value = { text: "0x51", annotation: "(BisCore.ModelContainsElements)" };
+    // The id alone fits; with the class name appended it does not.
+    expect(isTruncated({ text: value.text }, 120)).toBe(false);
+    expect(isTruncated(value, 120)).toBe(true);
+  });
+
+  it("treats an empty value as fitting any column", () => {
+    expect(isTruncated({ text: "" }, 48)).toBe(false);
   });
 });

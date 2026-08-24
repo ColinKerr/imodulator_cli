@@ -1,10 +1,14 @@
-import { augmentValue, columnKind, type ColumnInfo, type ColumnKind } from "./query-shape";
+import { augmentValue, columnKind, isExtraLong, isTruncated, type ColumnInfo, type ColumnKind } from "./query-shape";
 
 /** Rows rendered outside the viewport, so scrolling does not flash empty space. */
 const OVERSCAN = 10;
 const ROW_HEIGHT = 24;
 const MIN_COLUMN_WIDTH = 48;
+/** The always present column on the left that holds a row's expand chevron. */
+const GUTTER_WIDTH = 24;
 const MAX_INITIAL_COLUMN_WIDTH = 420;
+/** How much wider than its column the hover box is drawn. */
+const HOVER_WIDTH_FACTOR = 1.5;
 
 export interface TableData {
   columns: ColumnInfo[];
@@ -30,6 +34,7 @@ export class ResultsTable {
   private readonly spacer: HTMLElement;
   private readonly body: HTMLElement;
   private readonly header: HTMLElement;
+  private readonly hover: HTMLElement;
   private data: TableData = { columns: [], rows: [], classNames: new Map() };
   private loading = false;
   private exhausted = false;
@@ -48,16 +53,61 @@ export class ResultsTable {
     this.spacer.className = "results-spacer";
     this.body = document.createElement("div");
     this.body.className = "results-body";
+    this.hover = document.createElement("div");
+    this.hover.className = "results-hover";
+    this.hover.hidden = true;
     this.spacer.appendChild(this.body);
     this.viewport.appendChild(this.spacer);
-    this.root.append(this.header, this.viewport);
+    this.root.append(this.header, this.viewport, this.hover);
+    this.watchForHover();
     this.viewport.addEventListener("scroll", () => {
       // The header sits outside the scrolling viewport so it stays visible, which means its
       // horizontal position has to be driven from here or the columns drift out of line.
       this.header.scrollLeft = this.viewport.scrollLeft;
+      // The hover is positioned against the cell, so scrolling would leave it stranded.
+      this.hideHover();
       this.renderRows();
       void this.loadMoreIfNeeded();
     });
+  }
+
+  /**
+   * Show the whole value of a truncated cell on hover, in a box half again as wide as the
+   * column so the wrapped text has somewhere to go.
+   *
+   * Delegated rather than bound per cell: rows are rebuilt on every scroll, so listeners on
+   * individual cells would be attached and discarded continuously.
+   */
+  private watchForHover(): void {
+    this.viewport.addEventListener("pointerover", (event) => {
+      const cell = (event.target as HTMLElement | null)?.closest?.(".results-cell") as HTMLElement | null;
+      if (!cell || cell.dataset.truncated !== "1" || cell.closest(".results-row")?.classList.contains("expanded")) {
+        this.hideHover();
+        return;
+      }
+      this.showHover(cell);
+    });
+    this.viewport.addEventListener("pointerleave", () => this.hideHover());
+  }
+
+  private showHover(cell: HTMLElement): void {
+    this.hover.replaceChildren(document.createTextNode(cell.dataset.value ?? ""));
+    if (cell.dataset.annotation) {
+      const note = document.createElement("span");
+      note.className = "results-annotation";
+      note.textContent = ` ${cell.dataset.annotation}`;
+      this.hover.appendChild(note);
+    }
+
+    const bounds = cell.getBoundingClientRect();
+    this.hover.style.width = `${bounds.width * HOVER_WIDTH_FACTOR}px`;
+    this.hover.style.left = `${bounds.left}px`;
+    this.hover.style.top = `${bounds.bottom}px`;
+    this.hover.hidden = false;
+  }
+
+  private hideHover(): void {
+    this.hover.hidden = true;
   }
 
   public get rowCount(): number {
@@ -79,6 +129,7 @@ export class ResultsTable {
     this.kinds = data.columns.map(columnKind);
     this.widths = this.measureColumns();
     this.expanded.clear();
+    this.hideHover();
     this.loading = false;
     this.exhausted = data.loadMore === undefined;
     this.viewport.scrollTop = 0;
@@ -156,13 +207,18 @@ export class ResultsTable {
    * viewport would have nothing to scroll over horizontally.
    */
   private sizeSpacer(): void {
-    const total = this.widths.reduce((sum, width) => sum + width, 0);
+    const total = this.widths.reduce((sum, width) => sum + width, GUTTER_WIDTH);
     this.spacer.style.width = `${total}px`;
     this.spacer.style.height = `${this.data.rows.length * ROW_HEIGHT}px`;
   }
 
   private renderHeader(): void {
     this.header.replaceChildren();
+    // Matches the gutter on every row, so the headers line up with their columns.
+    const gutter = document.createElement("div");
+    gutter.className = "results-head-cell results-gutter";
+    this.header.appendChild(gutter);
+
     this.data.columns.forEach((column, index) => {
       const cell = document.createElement("div");
       cell.className = "results-head-cell";
@@ -216,27 +272,40 @@ export class ResultsTable {
     if (isExpanded)
       element.classList.add("expanded");
 
-    let truncated = false;
+    // The gutter is always present, whether or not this row has anything to expand: adding it
+    // only to truncated rows would shift their cells and misalign the columns.
+    const gutter = document.createElement("div");
+    gutter.className = "results-cell results-gutter";
+    element.appendChild(gutter);
+
+    let hasExtraLong = false;
     this.data.columns.forEach((_column, columnIndex) => {
       const cell = document.createElement("div");
       cell.className = "results-cell";
       cell.style.width = `${this.widths[columnIndex]}px`;
 
-      const { text, annotation } = augmentValue(row[columnIndex], this.kinds[columnIndex], this.data.classNames);
-      cell.append(document.createTextNode(text));
-      if (annotation) {
+      const value = augmentValue(row[columnIndex], this.kinds[columnIndex], this.data.classNames);
+      cell.append(document.createTextNode(value.text));
+      if (value.annotation) {
         const note = document.createElement("span");
         note.className = "results-annotation";
-        note.textContent = ` ${annotation}`;
+        note.textContent = ` ${value.annotation}`;
         cell.appendChild(note);
       }
-      // Roughly 8px per character: enough to know the value cannot fit its column.
-      if ((text.length + (annotation?.length ?? 0)) * 8 + 24 > this.widths[columnIndex])
-        truncated = true;
+      if (isTruncated(value, this.widths[columnIndex])) {
+        // Marked for the hover, which reads the full value back from here.
+        cell.dataset.truncated = "1";
+        cell.dataset.value = value.text;
+        if (value.annotation)
+          cell.dataset.annotation = value.annotation;
+      }
+      // A chevron is only for values a hover cannot comfortably show.
+      if (isExtraLong(value, this.widths[columnIndex]))
+        hasExtraLong = true;
       element.appendChild(cell);
     });
 
-    if (truncated) {
+    if (hasExtraLong) {
       const chevron = document.createElement("button");
       chevron.className = "results-chevron";
       chevron.textContent = isExpanded ? "▾" : "▸";
@@ -246,9 +315,10 @@ export class ResultsTable {
           this.expanded.delete(index);
         else
           this.expanded.add(index);
+        this.hideHover();
         this.renderRows();
       });
-      element.insertBefore(chevron, element.firstChild);
+      gutter.appendChild(chevron);
     }
 
     return element;

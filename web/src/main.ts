@@ -20,6 +20,12 @@ const $ = (id: string): HTMLElement => {
   return element;
 };
 
+// Formats a generic count (rows, pages, indexes, …) with thousands separators and
+// no decimal point, e.g. 4599739 → "4,599,739".
+export function formatCount(n: number): string {
+  return new Intl.NumberFormat("en-US").format(Math.round(n));
+}
+
 class Console {
   private readonly editor = createEditor($("editor"));
   private readonly table = new ResultsTable($("results"));
@@ -192,7 +198,7 @@ class Console {
         classNames: this.schemaInfo.classNamesById,
         loadMore: () => this.readChunk(PAGE_ROWS),
       });
-      this.status(explain ? "Explained" : "Ran");
+      this.status("Done");
       this.updateButtons();
 
       this.countIsExact = false;
@@ -231,7 +237,7 @@ class Console {
       const reader = this.imodel!.createQueryReader(countQuery(ecsql));
       for await (const row of reader) {
         this.countIsExact = true;
-        $("count").textContent = `Count: ${row.toArray()[0]}`;
+        $("count").textContent = `Count: ${formatCount(row.toArray()[0])}`;
         return;
       }
     } catch {
