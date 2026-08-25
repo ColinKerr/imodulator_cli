@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>eyeModel Console</title>
+    <link rel="stylesheet" href="./console.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <span class="app-name">eyeModel Console</span>
+      <button id="pick" class="pick" title="Pick an iModel to open">
+        Pick iModel <span id="imodel-name" class="imodel-name">none open</span>
+      </button>
+      <span class="spacer"></span>
+      <div class="split-button">
+        <button id="back" class="split-main" title="Previous query" disabled>◀</button>
+        <button id="back-menu" class="split-toggle" title="Earlier queries" aria-haspopup="menu" aria-expanded="false" disabled>▾</button>
+      </div>
+      <!-- Mirrored: the arrows sit on the outside of the pair, so Back and Forward point away
+           from each other and each menu hangs beside its own arrow. -->
+      <div class="split-button">
+        <button id="forward-menu" class="split-toggle" title="Later queries" aria-haspopup="menu" aria-expanded="false" disabled>▾</button>
+        <button id="forward" class="split-main" title="Next query" disabled>▶</button>
+      </div>
+      <div id="history-menu" class="history-menu" hidden></div>
+    </header>
+
+    <div class="command-bar">
+      <button id="run" title="Run" disabled>▶ Run</button>
+      <button id="explain" title="Explain query" disabled>❔ Explain</button>
+      <button id="format" title="Format ECSql" disabled>❖ Format</button>
+      <button id="save" title="Save results as CSV" disabled>⭳ Save results</button>
+      <span id="status" class="status"></span>
+      <span class="spacer"></span>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="work-area">
+      <main id="content" class="content">
+        <section id="editor-pane" class="pane editor-pane">
+          <div id="editor" class="editor"></div>
+          <!-- Hovers over the editor's upper right corner, inside the pane so it stays there
+               however the panes are resized. -->
+          <button id="help" class="help-button" title="ECSql reference" aria-expanded="false">?</button>
+        </section>
+        <div id="divider" class="divider" title="Drag to resize"></div>
+        <section id="results-pane" class="pane results-pane"><div id="results"></div></section>
+      </main>
+
+      <!-- In flow beside the panes rather than over them, so a pinned panel narrows the
+           results instead of covering them. -->
+      <aside id="help-panel" class="help-panel" aria-label="ECSql reference" hidden>
+        <!-- Inside the panel rather than beside it, so it appears and disappears with the
+             panel instead of needing its own visibility handling. -->
+        <div id="help-divider" class="help-divider" title="Drag to resize"></div>
+        <div class="help-main">
+          <div class="help-header">
+            <span class="help-title">ECSql Reference</span>
+            <span class="spacer"></span>
+            <button id="help-contents" class="help-action" title="Back to contents">☰</button>
+            <button id="help-pin" class="help-action" title="Pin open" aria-pressed="false">📌</button>
+            <button id="help-close" class="help-action" title="Close">✕</button>
+          </div>
+          <div id="help-body" class="help-body"></div>
+        </div>
+      </aside>
+    </div>
+
+    <dialog id="picker" class="picker">
+      <h2>Open an iModel</h2>
+      <div id="picker-list" class="picker-list"></div>
+      <div class="picker-path-row">
+        <input id="picker-path-input" type="text" placeholder="…or paste a path to an iModel file" />
+        <button id="picker-open">Open</button>
+      </div>
+      <form method="dialog"><button>Cancel</button></form>
+    </dialog>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

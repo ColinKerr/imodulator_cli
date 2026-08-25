@@ -21,6 +21,7 @@ export async function runPushBriefcase(args: PushBriefcaseArgs): Promise<string 
     throw new Error(`Briefcase ${args.briefcaseId} for iModel ${args.imodelId} is not downloaded locally.`);
 
   const db = await BriefcaseDb.open({ fileName: row.file_path });
+  console.log(`Preparing to push changes from briefcase ${args.briefcaseId} for iModel ${args.imodelId}...`);
   try {
     await db.pushChanges({
       accessToken,

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  // The console and the steps that build it. Neither is compiled by `tsc` into dist, so this
+  // is the only thing that type checks them.
+  "include": ["web/src/**/*", "build/**/*", "vite.config.ts"]
+}

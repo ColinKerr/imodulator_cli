@@ -18,7 +18,7 @@ import { startIModelHost } from "../../host/imodel-host";
 import { noopAuthClient } from "../../auth/noop-auth-client";
 import { Id64, IModelStatus, type Id64String } from "@itwin/core-bentley";
 
-export const DEFAULT_BLOB_SIZE = 4 * 1024; // 4 KiB
+export const DEFAULT_BLOB_SIZE = 1024; // 1 KiB
 
 export interface PartinateArgs {
   imodelPath: string;
