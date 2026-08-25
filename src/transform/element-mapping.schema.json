@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/imodulator/imod/schemas/element-mapping.schema.json",
+  "title": "iModel element class mapping",
+  "description": "Mapping file for `imod transform using-map`: converts elements of source EC classes to target EC classes, optionally remapping properties.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ElementMapping"],
+  "properties": {
+    "ElementMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ClassMappings"],
+      "properties": {
+        "ClassMappings": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/classMapping" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ecClassName": {
+      "type": "string",
+      "description": "Fully qualified EC class name as `Schema.Class` or `Schema:Class`.",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*[.:][A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "classMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["SourceClass", "TargetClass"],
+      "properties": {
+        "SourceClass": { "$ref": "#/$defs/ecClassName" },
+        "TargetClass": { "$ref": "#/$defs/ecClassName" },
+        "Options": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "AutoMapLikeNamedProperties": {
+              "type": "boolean",
+              "description": "Map properties present on both the source and target class that share the same name and are not already covered by an explicit PropertyMapping.",
+              "default": false
+            }
+          }
+        },
+        "PropertyMappings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/propertyMapping" }
+        }
+      }
+    },
+    "propertyMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["SourceProperty", "TargetProperty"],
+      "properties": {
+        "SourceProperty": { "type": "string", "minLength": 1 },
+        "TargetProperty": { "type": "string", "minLength": 1 },
+        "Options": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "DefaultValueIfEmpty": {
+              "description": "Value written to the target property when the source value is null or empty.",
+              "type": ["string", "number", "boolean", "null"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -52,6 +52,10 @@ Commands under `imod local`
 
 Commands under `imod serve`
 
+- `imod serve console` - Starts the eyeModel Console, a web app for writing ECSql queries against an iModel served by `imod serve backend`.  Starts a backend too if one is not already running, passing on `--imodel-path`.  Optionally opens `--imodel-path` on load, listens on `--port` (default 8080), and `--stop` shuts it down, along with the backend if the console started it.  See [CONSOLE.md](./commands/serve/CONSOLE.md).
+- `imod serve backend` - Starts a local iTwin.js RPC backend that serves iModels from the cache or from a file path, then returns so other commands can run while it serves.  Optionally opens the iModel at `--imodel-path` under the key `default`, listens on `--port`, and `--stop` shuts a running server down.  See [BACKEND.md](./commands/serve/BACKEND.md).
+- `imod serve stop-all` - Stops all running servers and reports back what was stopped.
+
 
 ## Cache commands
 
@@ -63,13 +67,19 @@ Commands under `imod cache`
 
 ## Edit commands
 
-Commands under `imod edit`
+Commands under `imod edit`.  All Edit commands error if the iModel briefcase is not already downloaded.
 
-- `imod edit import-schemas` - Imports schemas found at `--schema-path` into the iModel specified by `--imodel-id` and `--briefcase-id`.  Error if the iModel briefcase is not already downloaded.
-- `imod edit partinate` - Partinates the briefcase specified by `--imodel-id` and `--briefcase-id` (see [PARTINATE.md](./commands/util/PARTINATE.md) for the `--blob-size` behaviour), saving the moved geometry as local changes that `imod hub briefcase push` can push to the hub.  Error if the iModel briefcase is not already downloaded.
-- `imod edit poke` - Updates the last mod date of the root model.  Error if the iModel briefcase is not already downloaded.
-- `imod edit update-profile` - Updates teh iModels profile to the latest supported by iTwin.js.  Updates the iModel specified by `--imodel-id` and `--briefcase-id`.  Error if the iModel briefcase is not already downloaded.  Reuses the code from `imod util update-profile` but applies appropriate db lock.
+- `imod edit import-schemas` - Imports schemas found at `--schema-path` into the iModel specified by `--imodel-id` and `--briefcase-id`.
+- `imod edit partinate` - Partinates the briefcase specified by `--imodel-id` and `--briefcase-id` (see [PARTINATE.md](./commands/util/PARTINATE.md) for the `--blob-size` behavior), saving the moved geometry as local changes that `imod hub briefcase push` can push to the hub.
+- `imod edit poke` - Updates the last mod date of the root model.
+- `imod edit update-profile` - Updates teh iModels profile to the latest supported by iTwin.js.  Updates the iModel specified by `--imodel-id` and `--briefcase-id`.  Reuses the code from `imod util update-profile` but applies appropriate db lock.
 
+## Transform commands
+
+Commands under `imod transform`.  All Transform commands error if the iModel briefcase is not already downloaded.
+
+- `imod transform unify-schemas` - Converts elements of classes from schemas specified by `--source-schemas` to elements of like named classes from `--target-schemas`.  The iModel to be transformed is specified by `--imodel-id` and `--briefcase-id`. 
+- `imod transform using-map` - Converts elements of classes specified by the `--map-file` to the target class specified by that mapping file.  The `--dry_run` parameter generates a json output describing count of elements that would be transformed, grouped by source class instead of actually running the transform.  The iModel to be transformed is specified by `--imodel-id` and `--briefcase-id`.
 
 ## Util commands
 
@@ -83,3 +93,9 @@ Commands under `imod util`
 - `imod util set-fed-guids` - Sets all unset BisCore.Element.FederationGuid properties in the iModel specified by `--imodel-path`.
 - `imod util update-profile` - Updates the iModels profile to the latest supported by iTwin.js. Updates iModel specified by `--imodel-path`.
 - `imod util mapipulate` - Modifies mapping to move GeometryPart GeometryStreams into their own table.  Creates a new iModel based on the iModel specified by `--imodel-path`.  The flavor of mapping changes are controlled via the `--remap-type`.  See MAPIPULATE.md for details.
+
+### Clean commands
+
+Commands under `imod util clean`.  These commands cleanup drek in an iModel.
+
+- `imod util clean esa` - Cleans duplicate ExternalSourceAspects from the imodel specified by the `--imodel-path` argument.  See [ESA.md](./commands/util/clean/ESA.md).

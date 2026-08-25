@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { BriefcaseDb, PhysicalModel, SpatialCategory } from "@itwin/core-backend";
 import {
   Code,
@@ -15,21 +13,19 @@ import { Box, Range3d } from "@itwin/core-geometry";
 import { runEditPartinate } from "../../../commands/edit/partinate";
 import { closeCacheDb, getCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
 
 beforeAll(async () => {
-  // Isolate the cache db (and IModelHost cache) in a temp dir for this test process.
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-edit-partinate-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("edit-partinate");
 });
 
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 function buildBoxGeometry(boxCount: number): GeometryStreamProps {

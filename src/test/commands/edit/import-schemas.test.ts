@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { BriefcaseDb } from "@itwin/core-backend";
 import { runImportSchemas } from "../../../commands/edit/import-schemas";
 import { closeCacheDb, getCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir, testTempDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
@@ -21,19 +21,16 @@ const SCHEMA_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </ECSchema>`;
 
 beforeAll(async () => {
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-import-schemas-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("import-schemas");
 
-  schemaDir = mkdtempSync(join(tmpdir(), "imod-import-schemas-files-"));
+  schemaDir = testTempDir("imod-import-schemas-files");
   writeFileSync(join(schemaDir, "TestSchema.ecschema.xml"), SCHEMA_XML, "utf8");
 });
 
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
-  rmSync(schemaDir, { recursive: true, force: true });
 });
 
 async function registeredBriefcase(name: string): Promise<TestBriefcase> {
@@ -91,13 +88,12 @@ describe("imod edit import-schemas", () => {
   });
 
   it("throws when no schema files are found at the path", async () => {
-    const empty = mkdtempSync(join(tmpdir(), "imod-import-schemas-empty-"));
+    const empty = testTempDir("imod-import-schemas-empty");
     try {
       await expect(
         runImportSchemas({ imodelId: "x", briefcaseId: 2, schemaPath: empty }),
       ).rejects.toThrow(/No schema files/);
     } finally {
-      rmSync(empty, { recursive: true, force: true });
     }
   });
 });

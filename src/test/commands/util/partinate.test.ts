@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { join } from "node:path";
 import {
   BriefcaseDb,
   PhysicalModel,
@@ -22,15 +23,20 @@ import {
 } from "@itwin/core-common";
 import { Box, Range3d } from "@itwin/core-geometry";
 import { prepareForPart, runPartinate } from "../../../commands/util/partinate";
+import { closeCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
+let cacheDir: string;
 
 beforeAll(async () => {
+  cacheDir = testCacheDir();
   await fixture.startup("partinate");
 });
 
 afterAll(async () => {
+  closeCacheDb();
   await fixture.shutdown();
 });
 
@@ -233,6 +239,17 @@ describe("imod util partinate", () => {
         wantGeometry: true,
       });
       expect(geometryPartReferences(smallProps.geom)).toHaveLength(0);
+
+      // The scratch mapping table is a SQLite TEMP table, so it must not persist in the file
+      // (and therefore never enters a changeset).
+      const leaked = db.withSqliteStatement(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='partinate_map'",
+        (stmt) => {
+          stmt.step();
+          return stmt.getValueInteger(0);
+        },
+      );
+      expect(leaked).toBe(0);
     });
   });
 

@@ -13,17 +13,22 @@ import { listManifestCommand } from "./commands/hub/manifest/list";
 import { cloneIModelCommand } from "./commands/hub/clone";
 import { createIModelCommand } from "./commands/hub/create";
 import { clearLocalCommand } from "./commands/local/clear";
+import { serveBackendCommand } from "./commands/serve/backend";
+import { serveConsoleCommand } from "./commands/serve/console";
+import { serveStopAllCommand } from "./commands/serve/stop-all";
 import { cacheDirCommand } from "./commands/cache/dir";
 import { cacheListImodelsCommand } from "./commands/cache/list-imodels";
 import { cacheListDbCommand } from "./commands/cache/list-db";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
+import { usingMapCommand } from "./commands/transform/using-map";
 import { editUpdateProfileCommand } from "./commands/edit/update-profile";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mapipulateCommand } from "./commands/util/mapipulate";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
 import { partinateCommand } from "./commands/util/partinate";
+import { cleanEsaCommand } from "./commands/util/clean/esa";
 import { queryCommand } from "./commands/util/query";
 import { setFedGuidsCommand } from "./commands/util/set-fed-guids";
 import { updateProfileCommand } from "./commands/util/update-profile";
@@ -78,6 +83,8 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
     .command({
       command: "serve <action>",
       describe: "Run local servers",
+      builder: (y) =>
+        y.command(serveBackendCommand).command(serveConsoleCommand).command(serveStopAllCommand).demandCommand(1),
       handler: () => {},
     })
     .command({
@@ -90,6 +97,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(editPokeCommand)
           .command(editUpdateProfileCommand)
           .demandCommand(1),
+      handler: () => {},
+    })
+    .command({
+      command: "transform <action>",
+      describe: "Transform iModels, creating local change sets that can be pushed to the hub",
+      builder: (y) => y.command(usingMapCommand).demandCommand(1),
       handler: () => {},
     })
     .command({
@@ -113,6 +126,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(mergeSchemaSetCommand)
           .command(partinateCommand)
           .command(queryCommand)
+          .command({
+            command: "clean <action>",
+            describe: "Clean drek out of an iModel",
+            builder: (yy) => yy.command(cleanEsaCommand).demandCommand(1),
+            handler: () => {},
+          })
           .command(setFedGuidsCommand)
           .command(updateProfileCommand)
           .command(vacuumCommand)

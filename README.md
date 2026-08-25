@@ -44,10 +44,10 @@ Download briefcase locally
 npm run imod hub briefcase download -- --imodel-id <iModelId> --itwin-id <iTwinId> --briefcase-id <briefcaseId>
 ```
 
-Partinate iModel, this moves all geometry streams larger than 4k to geometry parts.  Threshold is configurable, see help for details.
+Partinate iModel, this moves all geometry streams larger than 1k to geometry parts.  Threshold is configurable, see help for details.
 
 ```bash
-npm run imod hub edit partinate -- --imodel-id <iModelId> --briefcase-id <briefcaseId>
+npm run imod edit partinate -- --imodel-id <iModelId> --briefcase-id <briefcaseId>
 ```
 
 > Note it logs how many geometric element 3ds it partinated

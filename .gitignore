@@ -146,3 +146,5 @@ vite.config.ts.timestamp-*
 *.js.map
 *.d.ts.map
 .configStore/
+# Generated from web/help by the ecsql-help Vite plugin.
+web/public/help/
