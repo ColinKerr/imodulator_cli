@@ -1,27 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { SchemaState } from "@itwin/core-common";
 import { runEditUpdateProfile } from "../../../commands/edit/update-profile";
 import { readProfileVersions } from "../../../commands/util/update-profile";
 import { closeCacheDb, getCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
 
 beforeAll(async () => {
-  // Isolate the cache db (and IModelHost cache) in a temp dir for this test process.
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-edit-update-profile-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("edit-update-profile");
 });
 
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 /** Create a briefcase and record it in the cache as downloaded, as the hub commands do. */

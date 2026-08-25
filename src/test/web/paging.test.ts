@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { BriefcaseDb, PhysicalModel, SpatialCategory } from "@itwin/core-backend";
 import { Code, IModel, SubCategoryAppearance, type PhysicalElementProps } from "@itwin/core-common";
 import { readChunk, type RowCursor } from "../../../web/src/paging";
 import { closeCacheDb } from "../../cache/cache-db";
 import { HubMockFixture } from "../hub-mock-fixture";
+import { testCacheDir } from "../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
@@ -15,8 +14,7 @@ let fileName: string;
 const SEEDED = 25;
 
 beforeAll(async () => {
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-paging-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("paging");
   const briefcase = await fixture.createBriefcase("paged");
   fileName = briefcase.fileName;
@@ -45,7 +43,6 @@ beforeAll(async () => {
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 const QUERY = "SELECT UserLabel FROM Generic.PhysicalObject ORDER BY UserLabel";

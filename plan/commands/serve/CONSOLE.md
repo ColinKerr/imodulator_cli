@@ -50,9 +50,19 @@ browser ──(assets, /config.json)──► imod serve console  :8080
    └────(queryRows, tiles over RPC)────► imod serve backend :3001
 ```
 
-`imod serve console` warns when no backend is running, and `/config.json` reports the same to the
-browser so the page can say so rather than failing mysteriously. The backend is looked up on each
-request, so it can be started or restarted without restarting the console.
+**`imod serve console` starts the backend if one is not already running.** The console is useless
+without it, so starting it is part of starting the console; `--imodel-path` is passed on, so the
+iModel is already open when the page loads. A backend that is already running is left exactly as
+it is, port and open iModels included.
+
+Which backend gets stopped follows from who started it. The console's record of the backend
+carries `startedBy: "console"`, and `imod serve console --stop` stops that backend as well --
+but never one the user started themselves, which is theirs to stop. `imod serve stop-all` still
+stops everything either way.
+
+`/config.json` reports the backend to the browser, so the page can say when there is none rather
+than failing mysteriously. The backend is looked up on each request, so it can be restarted
+without restarting the console.
 
 The connection is a small `IModelConnection` subclass wrapping the props from the backend's
 `POST /open`: the base class constructor is protected and has only two abstract members

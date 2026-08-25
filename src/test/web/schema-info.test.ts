@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { BriefcaseDb } from "@itwin/core-backend";
 import {
   buildSchemaInfo, classesFor, loadSchemaInfo, propertiesFor, propertiesForClassName,
@@ -11,6 +9,7 @@ import { parseTableAliases } from "../../../web/src/table-aliases";
 import { ECSQL_FUNCTIONS } from "../../../web/src/ecsql-functions";
 import { closeCacheDb } from "../../cache/cache-db";
 import { HubMockFixture } from "../hub-mock-fixture";
+import { testCacheDir } from "../temp-workspace";
 
 const classRows: ClassRow[] = [
   ["0x1", "BisCore", "bis", "0x42", "Element"],
@@ -128,8 +127,7 @@ describe("loadSchemaInfo against a real iModel", () => {
   let info: SchemaInfo;
 
   beforeAll(async () => {
-    cacheDir = mkdtempSync(join(tmpdir(), "imod-schema-cache-"));
-    process.env.IMOD_CACHE_DIR = cacheDir;
+    cacheDir = testCacheDir();
     await fixture.startup("schema-info");
     const briefcase = await fixture.createBriefcase("schemas");
     const db = await BriefcaseDb.open({ fileName: briefcase.fileName, readonly: true });
@@ -144,7 +142,6 @@ describe("loadSchemaInfo against a real iModel", () => {
   afterAll(async () => {
     closeCacheDb();
     await fixture.shutdown();
-    rmSync(cacheDir, { recursive: true, force: true });
   });
 
   it("resolves BisCore's classes by name and by its real alias", () => {

@@ -1,4 +1,4 @@
-:root { --border: #d5d8dc; --bg: #fff; --bar: #f5f6f7; --muted: #7a8288; --accent: #1b6ac9; }
+:root { --border: #d5d8dc; --bg: #fff; --bar: #f5f6f7; --muted: #7a8288; --accent: #1b6ac9;  --dark: #121212;}
 * { box-sizing: border-box; }
 /* The window itself never scrolls: each pane owns its own overflow, so scrolling one cannot
    move the other. Without this, wide results widen the page and both panes scroll together. */
@@ -83,7 +83,7 @@ button:not(:disabled):hover { border-color: var(--accent); color: var(--accent);
 
 /* Clear of Monaco's vertical scrollbar, which owns the last 14px of the editor. */
 .help-button { position: absolute; top: 8px; right: 18px; z-index: 5; width: 22px; height: 22px;
-  padding: 0; border-radius: 50%; line-height: 1; color: var(--muted); opacity: .75;
+  padding: 0; border-radius: 50%; line-height: 1; color: var(--dark); opacity: .75;
   box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .help-button:hover { opacity: 1; }
 

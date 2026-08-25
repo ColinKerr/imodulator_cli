@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { startBackendServer, type RunningServer } from "../../../serve/backend-server";
 import { DEFAULT_KEY, resolveIModelKey } from "../../../serve/open-for-serve";
 import { readServerRecord, serverRecordPath, stopServerProcess } from "../../../serve/server-process";
 import { closeCacheDb, getCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
@@ -16,8 +16,7 @@ let servedPath: string;
 let server: RunningServer | undefined;
 
 beforeAll(async () => {
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-serve-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("serve-backend");
   briefcase = await fixture.createBriefcase("served");
   getCacheDb()
@@ -37,7 +36,6 @@ afterEach(async () => {
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 /** Port 0 so tests never collide with a real server or with each other. */
@@ -171,9 +169,9 @@ describe("imod serve backend", () => {
 
 describe("server record and --stop", () => {
   it("reports nothing to stop when no server was started", async () => {
-    rmSync(serverRecordPath(), { force: true });
-    expect(readServerRecord()).toBeUndefined();
-    expect(await stopServerProcess()).toEqual({ stopped: false });
+    rmSync(serverRecordPath("backend"), { force: true });
+    expect(readServerRecord("backend")).toBeUndefined();
+    expect(await stopServerProcess("backend")).toEqual({ stopped: false });
   });
 
   it("clears a stale record instead of killing whatever owns that pid now", async () => {

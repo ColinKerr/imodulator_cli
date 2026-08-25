@@ -1,17 +1,16 @@
 import { afterEach, beforeAll, afterAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { runServeStopAll } from "../../../commands/serve/stop-all";
 import { readServerRecord, serverRecordPath, SERVER_KINDS, type ServerKind } from "../../../serve/server-process";
+import { testCacheDir } from "../../temp-workspace";
 
 let cacheDir: string;
 let children: ChildProcess[] = [];
 
 beforeAll(() => {
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-stop-all-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
 });
 
 afterEach(() => {
@@ -23,7 +22,6 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 function writeRecord(kind: ServerKind, pid: number, port: number): void {

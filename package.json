@@ -1,12 +1,15 @@
 {
   "name": "imodulator-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "iModulator CLI tool (imod) for working with iTwin.js iModels",
-  "type": "commonjs",
+  "main": "./dist/imod.js",
   "bin": {
     "imod": "./dist/imod.js"
   },
-  "main": "./dist/imod.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
   "scripts": {
     "build": "tsc && npm run build:web",
     "clean": "rimraf dist",
@@ -16,9 +19,6 @@
     "build:web": "vite build",
     "lint:web": "tsc -p tsconfig.web.json",
     "sync:ecsql-help": "node scripts/sync-ecsql-help.mjs"
-  },
-  "engines": {
-    "node": ">=22.0.0 <23 || >=24.0.0 <25"
   },
   "files": [
     "dist/"

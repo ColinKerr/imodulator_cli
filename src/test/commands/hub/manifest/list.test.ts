@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import {
   resolveManifestPath,
   runListManifest,
@@ -15,11 +14,11 @@ import {
   MANIFEST_VERSION,
   type ManifestInfo,
 } from "../../../../manifest/manifest-file";
+import { testCacheDir } from "../../../temp-workspace";
 
 const IMODEL = "55555555-5555-5555-5555-555555555555";
 
 let cacheDir: string;
-let previousCacheDir: string | undefined;
 
 /** A minimal version 4 manifest holding one database. */
 function manifestBytes(name: string, blockCount: number, deleted = false): Buffer {
@@ -37,17 +36,7 @@ function manifestBytes(name: string, blockCount: number, deleted = false): Buffe
 }
 
 beforeAll(() => {
-  previousCacheDir = process.env.IMOD_CACHE_DIR;
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-manifest-list-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
-});
-
-afterAll(() => {
-  if (previousCacheDir === undefined)
-    delete process.env.IMOD_CACHE_DIR;
-  else
-    process.env.IMOD_CACHE_DIR = previousCacheDir;
-  rmSync(cacheDir, { recursive: true, force: true });
+  cacheDir = testCacheDir();
 });
 
 describe("resolveManifestPath", () => {

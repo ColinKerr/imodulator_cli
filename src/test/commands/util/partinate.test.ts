@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import {
   BriefcaseDb,
   PhysicalModel,
@@ -27,22 +25,19 @@ import { Box, Range3d } from "@itwin/core-geometry";
 import { prepareForPart, runPartinate } from "../../../commands/util/partinate";
 import { closeCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
 
 beforeAll(async () => {
-  // Isolate the cache (and IModelHost workspace) in a temp dir so the test does not touch
-  // the real ~/.imod/cache or collide with other test files.
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-partinate-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("partinate");
 });
 
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
 });
 
 /** Append `boxCount` stacked boxes, used to inflate the stored blob past the threshold. */

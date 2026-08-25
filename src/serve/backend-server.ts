@@ -5,6 +5,7 @@ import { IModelReadRpcInterface, IModelTileRpcInterface } from "@itwin/core-comm
 import { BentleyCloudRpcConfiguration, BentleyCloudRpcManager } from "@itwin/core-common";
 import { ECSchemaRpcInterface } from "@itwin/ecschema-rpcinterface-common";
 import { ECSchemaRpcImpl } from "@itwin/ecschema-rpcinterface-impl";
+import { getCacheDir } from "../cache/cache-dir";
 import { startIModelHost } from "../host/imodel-host";
 import { noopAuthClient } from "../auth/noop-auth-client";
 import { DEFAULT_KEY, listCacheIModels, openForServe, openOrReuse, resolveIModelKey, type KeySource } from "./open-for-serve";
@@ -80,7 +81,9 @@ export async function startBackendServer(args: BackendServerArgs = {}): Promise<
 
   /** Identifies this server to `imod serve`, and lets the console check it is reachable. */
   app.get("/health", (_req, res) => {
-    res.json({ server: "backend", open: opened.size });
+    // The cache directory is reported so a caller can tell which cache this server holds
+    // open. A server on the wrong one locks the workspace profile for everything else.
+    res.json({ server: "backend", open: opened.size, cacheDir: getCacheDir() });
   });
 
   /**

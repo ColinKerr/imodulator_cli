@@ -11,6 +11,11 @@ export interface ConsoleServerArgs {
   port?: number;
   /** Opened in the console when it loads, if the backend has it. */
   imodelPath?: string;
+  /**
+   * Where the frontend build lives. Defaults to `dist/web`; tests point it at a temporary
+   * directory so they never write a stand-in page over the real build output.
+   */
+  webRoot?: string;
 }
 
 export interface RunningConsole {
@@ -36,7 +41,7 @@ function webRoot(): string {
  * directly, which is why the backend answers CORS preflights.
  */
 export async function startConsoleServer(args: ConsoleServerArgs = {}): Promise<RunningConsole> {
-  const root = webRoot();
+  const root = args.webRoot ?? webRoot();
   if (!fs.existsSync(path.join(root, "index.html")))
     throw new Error(`The console frontend has not been built: ${root} is missing. Run "npm run build".`);
 

@@ -1,19 +1,20 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { startConsoleServer, type RunningConsole } from "../../../serve/console-server";
 import { serverRecordPath } from "../../../serve/server-process";
+import { testCacheDir, testTempDir } from "../../temp-workspace";
 
 let cacheDir: string;
+let webRoot: string;
 let consoleServer: RunningConsole | undefined;
 
 beforeAll(() => {
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-console-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
-  // The console serves whatever the frontend build produced; the tests only need it to exist.
-  mkdirSync(join(__dirname, "..", "..", "..", "..", "dist", "web"), { recursive: true });
-  writeFileSync(join(__dirname, "..", "..", "..", "..", "dist", "web", "index.html"), "<!doctype html><title>t</title>");
+  cacheDir = testCacheDir();
+  // A stand-in for the frontend build. It goes in a temp directory: writing it into the
+  // real dist/web would overwrite whatever the last build produced.
+  webRoot = testTempDir("console-web");
+  writeFileSync(join(webRoot, "index.html"), "<!doctype html><title>t</title>");
 });
 
 afterEach(async () => {
@@ -22,12 +23,8 @@ afterEach(async () => {
   rmSync(serverRecordPath("backend"), { force: true });
 });
 
-afterAll(() => {
-  rmSync(cacheDir, { recursive: true, force: true });
-});
-
 async function start(imodelPath?: string): Promise<RunningConsole> {
-  consoleServer = await startConsoleServer({ port: 0, imodelPath });
+  consoleServer = await startConsoleServer({ port: 0, imodelPath, webRoot });
   return consoleServer;
 }
 

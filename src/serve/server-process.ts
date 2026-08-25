@@ -44,6 +44,13 @@ export interface ServerRecord {
   startedAt: string;
   logFile: string;
   defaultIModel?: { key: string; filePath: string };
+  /**
+   * The server that started this one, when it was not started on its own account.
+   *
+   * `imod serve console` starts a backend if none is running, and stopping the console then
+   * stops that backend too -- but only this one, never a backend the user started themselves.
+   */
+  startedBy?: ServerKind;
 }
 
 export function serverRecordPath(kind: ServerKind): string {
@@ -112,6 +119,8 @@ export interface StartServerArgs {
   port?: number;
   /** Passed to the server process as IMOD_SERVE_* environment variables. */
   env?: Record<string, string | undefined>;
+  /** Recorded when another server is starting this one on its behalf. */
+  startedBy?: ServerKind;
 }
 
 /**
@@ -154,6 +163,7 @@ export async function startServerProcess(kind: ServerKind, args: StartServerArgs
       startedAt: new Date().toISOString(),
       logFile,
       defaultIModel: ready.defaultIModel,
+      startedBy: args.startedBy,
     };
     fs.writeFileSync(serverRecordPath(kind), JSON.stringify(record, null, 2));
     child.unref();

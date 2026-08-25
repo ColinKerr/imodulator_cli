@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { BriefcaseDb, PhysicalModel, SpatialCategory } from "@itwin/core-backend";
 import {
   Code,
@@ -15,6 +14,7 @@ import { Box, Range3d } from "@itwin/core-geometry";
 import { runUsingMap } from "../../../commands/transform/using-map";
 import { closeCacheDb, getCacheDb } from "../../../cache/cache-db";
 import { HubMockFixture, type TestBriefcase } from "../../hub-mock-fixture";
+import { testCacheDir, testTempDir } from "../../temp-workspace";
 
 const fixture = new HubMockFixture();
 let cacheDir: string;
@@ -48,10 +48,9 @@ const MAPPING = {
 };
 
 beforeAll(async () => {
-  cacheDir = mkdtempSync(join(tmpdir(), "imod-using-map-cache-"));
-  process.env.IMOD_CACHE_DIR = cacheDir;
+  cacheDir = testCacheDir();
   await fixture.startup("using-map");
-  workDir = mkdtempSync(join(tmpdir(), "imod-using-map-work-"));
+  workDir = testTempDir("imod-using-map-work");
   schemaFile = join(workDir, "TransformTest.ecschema.xml");
   writeFileSync(schemaFile, SCHEMA, "utf8");
   mapFile = join(workDir, "map.json");
@@ -61,8 +60,6 @@ beforeAll(async () => {
 afterAll(async () => {
   closeCacheDb();
   await fixture.shutdown();
-  rmSync(cacheDir, { recursive: true, force: true });
-  rmSync(workDir, { recursive: true, force: true });
 });
 
 function boxGeom(): GeometryStreamProps {

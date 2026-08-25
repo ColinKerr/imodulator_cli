@@ -52,7 +52,7 @@ Commands under `imod local`
 
 Commands under `imod serve`
 
-- `imod serve console` - Starts the eyeModel Console, a web app for writing ECSql queries against an iModel served by `imod serve backend`.  Optionally opens `--imodel-path` on load, listens on `--port` (default 8080), and `--stop` shuts it down.  See [CONSOLE.md](./commands/serve/CONSOLE.md).
+- `imod serve console` - Starts the eyeModel Console, a web app for writing ECSql queries against an iModel served by `imod serve backend`.  Starts a backend too if one is not already running, passing on `--imodel-path`.  Optionally opens `--imodel-path` on load, listens on `--port` (default 8080), and `--stop` shuts it down, along with the backend if the console started it.  See [CONSOLE.md](./commands/serve/CONSOLE.md).
 - `imod serve backend` - Starts a local iTwin.js RPC backend that serves iModels from the cache or from a file path, then returns so other commands can run while it serves.  Optionally opens the iModel at `--imodel-path` under the key `default`, listens on `--port`, and `--stop` shuts a running server down.  See [BACKEND.md](./commands/serve/BACKEND.md).
 - `imod serve stop-all` - Stops all running servers and reports back what was stopped.
 
