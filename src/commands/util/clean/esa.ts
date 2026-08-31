@@ -273,7 +273,7 @@ export async function runCleanEsa(args: CleanEsaArgs): Promise<CleanEsaResult> {
     console.log(`Deleted ${result.deleted} duplicate aspect(s), leaving one per identity.`);
     return result;
   } finally {
-    db.close({ optimize: true });
+    db.close({ optimize: args.dryRun === false });
   }
 }
 
