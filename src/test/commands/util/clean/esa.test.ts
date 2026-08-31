@@ -26,6 +26,8 @@ interface Identity {
   identifier: string;
   /** Insert with no Scope at all, which BisCore permits. */
   noScope?: boolean;
+  /** ExternalSourceAspect.JsonProperties, part of the identity. */
+  jsonProperties?: string;
 }
 
 /** Every aspect on the element, as identity keys, so survivors can be compared. */
@@ -34,7 +36,7 @@ function aspectIdentities(db: BriefcaseDb, elementId: Id64String): string[] {
     .getAspects(elementId, ExternalSourceAspect.classFullName)
     .map((a) => {
       const esa = a as ExternalSourceAspect;
-      return `${esa.scope?.id ?? "none"}|${esa.kind}|${esa.identifier}`;
+      return `${esa.scope?.id ?? "none"}|${esa.kind}|${esa.identifier}|${esa.jsonProperties ?? "none"}`;
     })
     .sort();
 }
@@ -73,6 +75,8 @@ async function seed(name: string, identities: Identity[]): Promise<{ briefcase: 
       };
       if (identity.noScope)
         delete (aspect as Partial<ExternalSourceAspectProps>).scope;
+      if (identity.jsonProperties !== undefined)
+        aspect.jsonProperties = identity.jsonProperties;
       db.elements.insertAspect(aspect);
     }
     db.saveChanges();
@@ -117,11 +121,56 @@ describe("imod util clean esa", () => {
       expect(aspectCount(db, elementId)).toBe(3);
       // One survivor per identity, and the near miss untouched.
       expect(aspectIdentities(db, elementId)).toEqual([
-        `${IModel.rootSubjectId}|Element|a`,
-        `${IModel.rootSubjectId}|Element|b`,
-        `${IModel.rootSubjectId}|Relationship|a`,
+        `${IModel.rootSubjectId}|Element|a|none`,
+        `${IModel.rootSubjectId}|Element|b|none`,
+        `${IModel.rootSubjectId}|Relationship|a|none`,
       ]);
       expect(db.txns.hasPendingTxns).toBe(true);
+    });
+  });
+
+  it("treats aspects that differ only by JsonProperties as different identities", async () => {
+    const { briefcase, elementId } = await seed("json-differs", [
+      { kind: "Element", identifier: "a", jsonProperties: `{"v":1}` },
+      { kind: "Element", identifier: "a", jsonProperties: `{"v":2}` },
+      { kind: "Element", identifier: "a", jsonProperties: `{"v":2}` },
+      // No JsonProperties at all is a third identity, not a match for either.
+      { kind: "Element", identifier: "a" },
+    ]);
+
+    const result = await runCleanEsa({ imodelPath: briefcase.fileName });
+
+    // Only the two identical `{"v":2}` aspects are duplicates of each other.
+    expect(result.duplicateGroups).toBe(1);
+    expect(result.redundant).toBe(1);
+    expect(result.deleted).toBe(1);
+
+    await withReadonly(briefcase.fileName, (db) => {
+      expect(aspectIdentities(db, elementId)).toEqual([
+        `${IModel.rootSubjectId}|Element|a|none`,
+        `${IModel.rootSubjectId}|Element|a|{"v":1}`,
+        `${IModel.rootSubjectId}|Element|a|{"v":2}`,
+      ]);
+    });
+  });
+
+  it("deletes duplicates that carry the same JsonProperties", async () => {
+    const { briefcase, elementId } = await seed("json-same", [
+      { kind: "Element", identifier: "a", jsonProperties: `{"source":"x","n":1}` },
+      { kind: "Element", identifier: "a", jsonProperties: `{"source":"x","n":1}` },
+      { kind: "Element", identifier: "a", jsonProperties: `{"source":"x","n":1}` },
+    ]);
+
+    const result = await runCleanEsa({ imodelPath: briefcase.fileName });
+
+    expect(result.duplicateGroups).toBe(1);
+    expect(result.deleted).toBe(2);
+    await withReadonly(briefcase.fileName, (db) => {
+      expect(aspectCount(db, elementId)).toBe(1);
+      // The survivor keeps its JsonProperties rather than losing them to the delete.
+      expect(aspectIdentities(db, elementId)).toEqual([
+        `${IModel.rootSubjectId}|Element|a|{"source":"x","n":1}`,
+      ]);
     });
   });
 
@@ -142,6 +191,51 @@ describe("imod util clean esa", () => {
 
     expect(result.redundant).toBe(1);
     expect(await withReadonly(briefcase.fileName, (db) => aspectCount(db, elementId))).toBe(1);
+  });
+
+  it("does not merge identical identities that belong to different elements", async () => {
+    // The grouping runs over the whole table, so Element.Id has to be part of the key: two
+    // elements each carrying the same aspect twice is two groups of two, not one group of four.
+    const briefcase = await fixture.createBriefcase("two-elements");
+    const db = await BriefcaseDb.open({ fileName: briefcase.fileName, readonly: false });
+    const elementIds: Id64String[] = [];
+    try {
+      const categoryId = SpatialCategory.insert(db, IModel.dictionaryId, "two-cat", new SubCategoryAppearance());
+      const modelId = PhysicalModel.insert(db, IModel.rootSubjectId, "two-model");
+      for (let i = 0; i < 2; i++) {
+        const elementId = db.elements.insertElement({
+          classFullName: "Generic:PhysicalObject",
+          model: modelId,
+          category: categoryId,
+          code: Code.createEmpty(),
+          placement: { origin: [0, 0, 0], angles: {} },
+        } as PhysicalElementProps);
+        elementIds.push(elementId);
+        for (let n = 0; n < 2; n++)
+          db.elements.insertAspect({
+            classFullName: ExternalSourceAspect.classFullName,
+            element: { id: elementId },
+            scope: { id: IModel.rootSubjectId },
+            kind: "Element",
+            identifier: "shared",
+            jsonProperties: `{"v":1}`,
+          } as ExternalSourceAspectProps);
+      }
+      db.saveChanges();
+    } finally {
+      db.close();
+    }
+
+    const result = await runCleanEsa({ imodelPath: briefcase.fileName });
+
+    expect(result.duplicateGroups).toBe(2);
+    expect(result.redundant).toBe(2);
+    expect(result.deleted).toBe(2);
+    // Each element keeps its own aspect; neither is left with none.
+    await withReadonly(briefcase.fileName, (readDb) => {
+      for (const elementId of elementIds)
+        expect(aspectCount(readDb, elementId)).toBe(1);
+    });
   });
 
   it("dry run reports the duplicates without deleting them", async () => {

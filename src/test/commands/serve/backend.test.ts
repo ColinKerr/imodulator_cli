@@ -165,6 +165,14 @@ describe("imod serve backend", () => {
     expect(running.port).toBeGreaterThan(0);
     expect(running.url).toBe(`http://127.0.0.1:${running.port}`);
   });
+
+  it("fails when the port is already taken, rather than reporting a server that never bound", async () => {
+    const running = await start();
+
+    // app.listen's callback argument fires even on EADDRINUSE, with a null address, so a
+    // server built on it would report success here and be dead a moment later.
+    await expect(startBackendServer({ port: running.port })).rejects.toThrow(/EADDRINUSE/);
+  });
 });
 
 describe("server record and --stop", () => {

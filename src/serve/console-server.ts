@@ -70,13 +70,18 @@ export async function startConsoleServer(args: ConsoleServerArgs = {}): Promise<
   // Anything else is the single page app.
   app.use(/.*/, (_req, res) => res.sendFile(path.join(root, "index.html")));
 
+  // The `listening` event rather than app.listen's callback: on a port that is already taken
+  // the callback still fires, with a null address, and the EADDRINUSE follows it.
   const server: Server = await new Promise((resolve, reject) => {
-    const listening = app.listen(args.port ?? DEFAULT_CONSOLE_PORT, "127.0.0.1", () => resolve(listening));
-    listening.on("error", reject);
+    const listening = app.listen(args.port ?? DEFAULT_CONSOLE_PORT, "127.0.0.1");
+    listening.once("listening", () => resolve(listening));
+    listening.once("error", reject);
   });
 
   const address = server.address();
-  const port = typeof address === "object" && address ? address.port : (args.port ?? DEFAULT_CONSOLE_PORT);
+  if (typeof address !== "object" || address === null)
+    throw new Error("The console server reported no address after it began listening.");
+  const port = address.port;
 
   return {
     port,

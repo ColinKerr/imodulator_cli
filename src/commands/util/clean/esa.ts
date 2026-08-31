@@ -7,9 +7,6 @@ import { startIModelHost } from "../../../host/imodel-host";
 /** Duplicate identities cleared per transaction. */
 const BATCH_SIZE = 5000;
 
-/** The index BisCore defines on (Scope.Id, Identifier, Kind) for ExternalSourceAspect. */
-const SOURCE_INDEX = "ix_bis_ExternalSourceAspect_Source";
-
 export interface CleanEsaArgs {
   imodelPath: string;
   /** Report the duplicates without deleting anything. */
@@ -36,8 +33,7 @@ interface EsaStorage {
   scope: string;
   identifier: string;
   kind: string;
-  /** Present when the BisCore index exists, which lets the scan avoid sorting. */
-  indexed: boolean;
+  jsonProperties: string;
 }
 
 /** One identity that holds duplicates, and the aspect that will be kept. */
@@ -46,6 +42,7 @@ interface DuplicateGroup {
   scope: string | undefined;
   identifier: string | undefined;
   kind: string | undefined;
+  jsonProperties: string | undefined;
   keeperId: Id64String;
   count: number;
 }
@@ -88,87 +85,86 @@ function resolveStorage(db: IModelDb): EsaStorage {
   const scope = column("Scope.Id");
   const identifier = column("Identifier");
   const kind = column("Kind");
-  if (identifier.table !== scope.table || kind.table !== scope.table)
+  const jsonProperties = column("JsonProperties");
+  const tables = [scope, identifier, kind, jsonProperties].map((c) => c.table);
+  if (new Set(tables).size !== 1)
     throw new Error(
-      `ExternalSourceAspect's identity properties are split across tables (${scope.table}, ${identifier.table}, ${kind.table}), which this command does not handle.`,
+      `ExternalSourceAspect's identity properties are split across tables (${tables.join(", ")}), which this command does not handle.`,
     );
 
-  const indexed = db.withPreparedSqliteStatement(
-    `SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='${SOURCE_INDEX}'`,
+  return {
+    classId,
+    table: scope.table,
+    scope: scope.column,
+    identifier: identifier.column,
+    kind: kind.column,
+    jsonProperties: jsonProperties.column,
+  };
+}
+
+/** Total ExternalSourceAspects, which the grouping query does not report. */
+function countAspects(db: IModelDb, storage: EsaStorage): number {
+  return db.withPreparedSqliteStatement(
+    `SELECT COUNT(*) FROM ${storage.table} WHERE ECClassId=${storage.classId}`,
     (stmt) => {
       stmt.step();
-      return stmt.getValueInteger(0) > 0;
+      return stmt.getValueInteger(0);
     },
   );
-
-  return { classId, table: scope.table, scope: scope.column, identifier: identifier.column, kind: kind.column, indexed };
 }
 
 /**
  * Find every identity that holds more than one aspect, and which aspect to keep.
  *
- * Ordering by (Scope, Identifier, Kind) matches the column order of the BisCore index, so
- * with `INDEXED BY` the scan walks that index and never sorts. That hint is the reason this
- * is raw SQLite rather than ECSql: ECSql cannot express it, and without it SQLite prefers
- * the ECClassId index and falls back to a temp b-tree over every aspect in the iModel.
+ * The grouping is left to SQLite. `MIN(Id)` picks the survivor in the same pass, so one query
+ * yields both the identity and the aspect to keep -- there is nothing to track in JavaScript,
+ * and only one row per duplicate identity crosses into it rather than one per aspect.
  *
- * Element.Id is not in the index, so it is grouped within each run instead. A run is normally
- * a single element, so that map stays tiny.
+ * `MIN` is for a deterministic answer, not a meaningful one: an aspect's id carries a
+ * briefcase prefix, so a lower id does not mean an older aspect. Any member of the group
+ * would do.
  *
- * What is collected is one entry per duplicate *identity*, not per duplicate aspect: an
- * iModel can hold tens of millions of redundant aspects, and the id list alone would not fit
- * in memory.
+ * SQLite sorts into a temp b-tree to do this. The BisCore index on (Scope, Identifier, Kind)
+ * does not avoid it -- measured on a 31M aspect iModel, hinting the index made it slower --
+ * because Element.Id and JsonProperties still have to be sorted within each of its runs.
  */
 function findDuplicateGroups(
   db: IModelDb,
   storage: EsaStorage,
 ): { groups: DuplicateGroup[]; scanned: number; redundant: number; largest: number } {
   const groups: DuplicateGroup[] = [];
-  let scanned = 0;
   let redundant = 0;
   let largest = 0;
 
-  const hint = storage.indexed ? `INDEXED BY ${SOURCE_INDEX}` : "";
+  // JsonProperties is compared as the stored text: two aspects whose JSON differs only in key
+  // order or spacing group separately, which errs towards keeping both.
   const sql =
-    `SELECT Id, ElementId, ${storage.scope}, ${storage.identifier}, ${storage.kind}
-     FROM ${storage.table} ${hint}
+    `SELECT ElementId, ${storage.scope}, ${storage.identifier}, ${storage.kind}, ${storage.jsonProperties},
+            COUNT(*) AS duplicates, MIN(Id) AS keeper
+     FROM ${storage.table}
      WHERE ECClassId=${storage.classId}
-     ORDER BY ${storage.scope}, ${storage.identifier}, ${storage.kind}`;
-
-  let runKey: string | undefined;
-  // Element to its group within the current (scope, identifier, kind) run.
-  let runElements = new Map<Id64String, DuplicateGroup>();
+     GROUP BY ElementId, ${storage.scope}, ${storage.identifier}, ${storage.kind}, ${storage.jsonProperties}
+     HAVING duplicates > 1`;
 
   db.withSqliteStatement(sql, (stmt) => {
     while (stmt.step() === DbResult.BE_SQLITE_ROW) {
-      scanned++;
-      const aspectId = stmt.getValueId(0);
-      const elementId = stmt.getValueId(1);
-      const scope = stmt.isValueNull(2) ? undefined : stmt.getValueId(2);
-      const identifier = stmt.isValueNull(3) ? undefined : stmt.getValueString(3);
-      const kind = stmt.isValueNull(4) ? undefined : stmt.getValueString(4);
-
-      const key = JSON.stringify([scope ?? null, identifier ?? null, kind ?? null]);
-      if (key !== runKey) {
-        runKey = key;
-        runElements = new Map();
-      }
-
-      const existing = runElements.get(elementId);
-      if (!existing) {
-        // First aspect of this identity: the one kept. Any of them would do.
-        runElements.set(elementId, { elementId, scope, identifier, kind, keeperId: aspectId, count: 1 });
-        continue;
-      }
-      if (++existing.count === 2)
-        groups.push(existing);
-      redundant++;
-      if (existing.count > largest)
-        largest = existing.count;
+      const count = stmt.getValueInteger(5);
+      groups.push({
+        elementId: stmt.getValueId(0),
+        scope: stmt.isValueNull(1) ? undefined : stmt.getValueId(1),
+        identifier: stmt.isValueNull(2) ? undefined : stmt.getValueString(2),
+        kind: stmt.isValueNull(3) ? undefined : stmt.getValueString(3),
+        jsonProperties: stmt.isValueNull(4) ? undefined : stmt.getValueString(4),
+        keeperId: stmt.getValueId(6),
+        count,
+      });
+      redundant += count - 1;
+      if (count > largest)
+        largest = count;
     }
   });
 
-  return { groups, scanned, redundant, largest };
+  return { groups, scanned: countAspects(db, storage), redundant, largest };
 }
 
 /**
@@ -180,7 +176,8 @@ function findDuplicateGroups(
 function deleteGroup(db: IModelDb, storage: EsaStorage, group: DuplicateGroup): number {
   const sql =
     `DELETE FROM ${storage.table}
-     WHERE ECClassId=? AND ElementId=? AND ${storage.scope} IS ? AND ${storage.identifier} IS ? AND ${storage.kind} IS ?
+     WHERE ECClassId=? AND ElementId=? AND ${storage.scope} IS ? AND ${storage.identifier} IS ?
+       AND ${storage.kind} IS ? AND ${storage.jsonProperties} IS ?
        AND Id<>?`;
   return db.withPreparedSqliteStatement(sql, (stmt) => {
     stmt.bindInteger(1, storage.classId);
@@ -197,7 +194,11 @@ function deleteGroup(db: IModelDb, storage: EsaStorage, group: DuplicateGroup): 
       stmt.bindNull(5);
     else
       stmt.bindString(5, group.kind);
-    stmt.bindId(6, group.keeperId);
+    if (group.jsonProperties === undefined)
+      stmt.bindNull(6);
+    else
+      stmt.bindString(6, group.jsonProperties);
+    stmt.bindId(7, group.keeperId);
 
     const rc = stmt.step();
     if (rc !== DbResult.BE_SQLITE_DONE)
@@ -221,8 +222,6 @@ export async function runCleanEsa(args: CleanEsaArgs): Promise<CleanEsaResult> {
 
   try {
     const storage = resolveStorage(db);
-    if (!storage.indexed)
-      console.log(`This iModel has no ${SOURCE_INDEX}; the scan will sort instead, which is slower on a large iModel.`);
 
     const { groups, scanned, redundant, largest } = findDuplicateGroups(db, storage);
     const result: CleanEsaResult = {
@@ -274,13 +273,13 @@ export async function runCleanEsa(args: CleanEsaArgs): Promise<CleanEsaResult> {
     console.log(`Deleted ${result.deleted} duplicate aspect(s), leaving one per identity.`);
     return result;
   } finally {
-    db.close();
+    db.close({ optimize: true });
   }
 }
 
 export const cleanEsaCommand: CommandModule<unknown, CleanEsaArgs> = {
   command: "esa",
-  describe: "Delete duplicate ExternalSourceAspects, keeping one per Element, Scope, Kind and Identifier",
+  describe: "Delete duplicate ExternalSourceAspects, keeping one per Element, Scope, Kind, Identifier and JsonProperties",
   builder: (y) =>
     y
       .option("imodel-path", {

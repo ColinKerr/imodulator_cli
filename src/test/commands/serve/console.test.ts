@@ -29,6 +29,12 @@ async function start(imodelPath?: string): Promise<RunningConsole> {
 }
 
 describe("imod serve console", () => {
+  it("fails when the port is already taken, rather than reporting a server that never bound", async () => {
+    const running = await start();
+
+    await expect(startConsoleServer({ port: running.port, webRoot })).rejects.toThrow(/EADDRINUSE/);
+  });
+
   it("serves the console application", async () => {
     const { url } = await start();
     const response = await fetch(url);

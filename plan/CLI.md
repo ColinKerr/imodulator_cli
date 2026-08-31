@@ -98,4 +98,4 @@ Commands under `imod util`
 
 Commands under `imod util clean`.  These commands cleanup drek in an iModel.
 
-- `imod util clean esa` - Cleans duplicate ExternalSourceAspects from the imodel specified by the `--imodel-path` argument.  See [ESA.md](./commands/util/clean/ESA.md).
+- `imod util clean esa` - Cleans duplicate ExternalSourceAspects from the imodel specified by the `--imodel-path` argument.  Two aspects are duplicates when Element.Id, Scope.Id, Kind, Identifier and JsonProperties are all equal.  See [ESA.md](./commands/util/clean/ESA.md).

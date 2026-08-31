@@ -36,16 +36,27 @@ async function ensureBackend(imodelPath?: string): Promise<{ record?: ServerReco
   if (running)
     return { record: running, started: false };
 
-  try {
-    const record = await startServerProcess("backend", {
-      env: { IMOD_SERVE_IMODEL_PATH: imodelPath },
-      startedBy: "console",
-    });
-    return { record, started: true };
-  } catch (err) {
-    console.warn(`Warning: could not start a backend server: ${err instanceof Error ? err.message : String(err)}`);
-    return { started: false };
+  // The default port first, so the backend lands where anything else would look for it, then
+  // any free port: something unrelated holding that port is no reason for the console to go
+  // without a backend.
+  for (const port of [undefined, 0]) {
+    try {
+      const record = await startServerProcess("backend", {
+        port,
+        env: { IMOD_SERVE_IMODEL_PATH: imodelPath },
+        startedBy: "console",
+      });
+      return { record, started: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (port === 0) {
+        console.warn(`Warning: could not start a backend server: ${message}`);
+        return { started: false };
+      }
+      console.warn(`The default backend port is not available (${message}); trying another port.`);
+    }
   }
+  return { started: false };
 }
 
 /**

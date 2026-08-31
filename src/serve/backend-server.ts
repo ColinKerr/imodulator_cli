@@ -136,13 +136,19 @@ export async function startBackendServer(args: BackendServerArgs = {}): Promise<
   app.get(/\/imodel\//, async (req, res) => rpcConfig.protocol.handleOperationGetRequest(req, res));
   app.use(/.*/, (_req, res) => res.send("<h1>imodulator iTwin.js RPC server</h1>"));
 
+  // The `listening` event, not app.listen's callback argument: measured against a port that
+  // was already taken, the callback fires anyway with a null address and the EADDRINUSE
+  // arrives after it. Resolving there reports a server that never bound.
   const server: Server = await new Promise((resolve, reject) => {
-    const listening = app.listen(args.port ?? DEFAULT_PORT, "127.0.0.1", () => resolve(listening));
-    listening.on("error", reject);
+    const listening = app.listen(args.port ?? DEFAULT_PORT, "127.0.0.1");
+    listening.once("listening", () => resolve(listening));
+    listening.once("error", reject);
   });
 
   const address = server.address();
-  const port = typeof address === "object" && address ? address.port : (args.port ?? DEFAULT_PORT);
+  if (typeof address !== "object" || address === null)
+    throw new Error("The backend server reported no address after it began listening.");
+  const port = address.port;
 
   let defaultIModel: RunningServer["defaultIModel"];
   if (args.imodelPath !== undefined) {

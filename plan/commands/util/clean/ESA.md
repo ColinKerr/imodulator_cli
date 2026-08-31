@@ -2,11 +2,13 @@
 
 Implementation details for the `imod util clean esa` commmand.
 
-An External Source Aspect is a duplicate if the Element.Id, Scope.Id, Kind and Identifier are the same.  So for example a list of all duplicate ESA ordered by count of duplicates can be found with the following ECSql query:
+An External Source Aspect is a duplicate if the Element.Id, Scope.Id, Kind, Identifier and
+JsonProperties are the same.  So for example a list of all duplicate ESA ordered by count of
+duplicates can be found with the following ECSql query:
 
 ```sql
-SELECT esa.Element.Id, esa.Scope.Id, esa.Kind, esa.Identifier, COUNT(*) as numberOfESA FROM bis.ExternalSourceAspect esa
-GROUP BY esa.Element.Id, esa.Scope.Id, esa.Kind, esa.Identifier
+SELECT esa.Element.Id, esa.Scope.Id, esa.Kind, esa.Identifier, esa.JsonProperties, COUNT(*) as numberOfESA FROM bis.ExternalSourceAspect esa
+GROUP BY esa.Element.Id, esa.Scope.Id, esa.Kind, esa.Identifier, esa.JsonProperties
 HAVING numberOfESA > 1
 ORDER BY numberOfESA DESC
 ```
@@ -17,33 +19,37 @@ Implemented using Direct SQL calls for best performance.
 
 ## Implementation notes
 
-**Which duplicate survives does not matter**, since the four identity properties are equal by
-definition. The first aspect of each identity the reader happens to return is kept and the rest
-are deleted; nothing sorts to choose between them. The remaining properties — `Version`,
-`Checksum`, `JsonProperties`, `Source` — are payload and take no part in the comparison, so a
-group whose payloads differ still collapses to one aspect, and which payload survives is
+**Which duplicate survives does not matter**, since the five identity properties are equal by
+definition. `MIN(Id)` picks one so the answer is deterministic, not because it means anything:
+an aspect id carries a briefcase prefix, so a lower id is not an older aspect. `Version`,
+`Checksum` and `Source` are payload and take no part in the comparison, so a group whose
+payloads differ in those still collapses to one aspect, and which payload survives is
 unspecified.
 
-**The scan walks the BisCore index; it does not sort.** The query above is the right shape for
-reporting, but driving deletion from it needs a second query per group to fetch the ids. Instead:
+**JsonProperties is compared as stored text.** Two aspects whose JSON differs only in key order
+or whitespace are held to be different and both survive. That errs towards keeping aspects,
+which is the safe direction for a delete.
+
+**Finding the groups is one GROUP BY**, which yields the identity, the number of duplicates and
+the aspect to keep in a single pass:
 
 ```sql
-SELECT Id, ElementId, <scope>, <identifier>, <kind>
-FROM bis_ElementMultiAspect INDEXED BY ix_bis_ExternalSourceAspect_Source
+SELECT ElementId, <scope>, <identifier>, <kind>, <json>, COUNT(*) AS duplicates, MIN(Id) AS keeper
+FROM bis_ElementMultiAspect
 WHERE ECClassId=<esa>
-ORDER BY <scope>, <identifier>, <kind>
+GROUP BY ElementId, <scope>, <identifier>, <kind>, <json>
+HAVING duplicates > 1
 ```
-
-BisCore defines `ix_bis_ExternalSourceAspect_Source` on `(ps1, ps2, ps3) WHERE ECClassId=<esa>`, i.e.
-(Scope, Identifier, Kind). Ordering by those three columns in that order lets SQLite walk the index
-and skip the sort entirely — `SCAN ... USING INDEX ix_bis_ExternalSourceAspect_Source`. Element.Id
-is not in the index, so it is grouped within each run instead; a run is normally one element.
 
 **Deletion is one statement per duplicate identity**, batched with a save every 5,000 groups:
 
 ```sql
 DELETE FROM bis_ElementMultiAspect
-WHERE ECClassId=? AND ElementId=? AND <scope> IS ? AND <identifier> IS ? AND <kind> IS ? AND Id<>?
+WHERE ECClassId=? AND ElementId=? AND <scope> IS ? AND <identifier> IS ? AND <kind> IS ?
+  AND <json> IS ? AND Id<>?
 ```
+
+`IS` rather than `=` so a null matches a null; with `=` a null Scope would match nothing and the
+duplicates would silently survive.
 
 **Options.** `--dry-run` reports what would be deleted and opens the iModel read-only.
