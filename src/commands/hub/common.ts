@@ -1,5 +1,7 @@
 /** Helpers shared by the `imod hub` commands. */
 
+import { getCachedIModel } from "../../cache/imodels";
+
 /** The `--itwin-id`/`--imodel-id`/`--url` options common to hub commands. */
 export interface IModelTargetArgs {
   imodelId?: string;
@@ -24,7 +26,17 @@ export function resolveCheckpointTarget(args: IModelTargetArgs): {
       throw new Error(`--url must contain two GUIDs (iTwin id then iModel id): ${args.url}`);
     return { itwinId, imodelId };
   }
-  if (!args.itwinId || !args.imodelId)
-    throw new Error("Provide --url, or both --itwin-id and --imodel-id");
-  return { itwinId: args.itwinId, imodelId: args.imodelId };
+  if (args.itwinId && args.imodelId)
+    return { itwinId: args.itwinId, imodelId: args.imodelId };
+
+  if (args.imodelId && !args.itwinId) {
+    const cached = getCachedIModel(args.imodelId);
+    if (cached)
+      return { itwinId: cached.itwinId, imodelId: args.imodelId };
+    throw new Error(
+      `iModel ${args.imodelId} is not in the cache, so its iTwin is unknown. Pass --itwin-id, or run "imod cache update".`,
+    );
+  }
+
+  throw new Error("Provide --url, or both --itwin-id and --imodel-id");
 }

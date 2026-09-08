@@ -60,6 +60,23 @@ export class HubMockFixture {
       rmSync(this.outputDir, { recursive: true, force: true });
   }
 
+  /**
+   * Create a new empty iModel without downloading a briefcase of it.
+   *
+   * For tests that download one themselves: a briefcase id can only be downloaded once, so a
+   * test exercising the download command needs an iModel that has not already had one taken.
+   */
+  async createIModel(iModelName: string): Promise<{ iModelId: string; iTwinId: string }> {
+    const iTwinId = HubMock.iTwinId;
+    const iModelId = await HubMock.createNewIModel({
+      accessToken: TEST_TOKEN,
+      iTwinId,
+      iModelName,
+      noLocks: true,
+    });
+    return { iModelId, iTwinId };
+  }
+
   /** Create a new empty iModel and download a writable, lock-free briefcase of it. */
   async createBriefcase(iModelName: string): Promise<TestBriefcase> {
     const iTwinId = HubMock.iTwinId;

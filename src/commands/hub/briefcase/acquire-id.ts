@@ -1,7 +1,8 @@
 import type { CommandModule } from "yargs";
 import { startIModelHost } from "../../../host/imodel-host";
-import { getHubAccess } from "../../../host/hub-access";
+import { getActiveHubAccess } from "../../../host/hub-access";
 import { getCacheDb } from "../../../cache/cache-db";
+import { recordIModelDetails } from "../../../cache/imodels";
 
 export interface acquireIdArgs {
   imodelId: string;
@@ -9,12 +10,13 @@ export interface acquireIdArgs {
 
 export async function runacquireId(args: acquireIdArgs): Promise<number> {
   await startIModelHost();
-  const briefcaseId = await getHubAccess().acquireNewBriefcaseId({
+  const briefcaseId = await getActiveHubAccess().acquireNewBriefcaseId({
     iModelId: args.imodelId,
   });
   getCacheDb()
     .prepare("INSERT OR REPLACE INTO briefcase_ids (imodel_id, briefcase_id) VALUES (?, ?)")
     .run(args.imodelId, briefcaseId);
+  await recordIModelDetails(args.imodelId);
   return briefcaseId;
 }
 

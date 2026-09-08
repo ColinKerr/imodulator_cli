@@ -53,11 +53,10 @@ What the CLI does place itself, via `ensureIModelCacheDir()`:
 
 Both sit *inside* iTwin.js's per-iModel directory, alongside directories iTwin.js manages.
 
-## The index: `imod.db`
+## imod.db
 
-`src/cache/cache-db.ts` opens `<cache>/imod.db` with better-sqlite3 in WAL mode, creates the
-schema if it is absent, and memoises the handle for the life of the process. It is opened lazily,
-on first use, so a command that never touches the cache never creates the file.
+imod.db is the local cache with iModulator CLI keeps it's state.  This cache includes references
+to all iModels and iModel related data downloaded by the CLI.
 
 | Table | Key | Written by | Read by |
 | --- | --- | --- | --- |
@@ -65,25 +64,47 @@ on first use, so a command that never touches the cache never creates the file.
 | `downloaded_briefcases` | (imodel_id, briefcase_id) | `hub briefcase download` | `cache list-imodels`, `local clear`, `serve` key resolution |
 | `downloaded_checkpoints` | (imodel_id, changeset_id) | `hub checkpoint download` | as above |
 | `downloaded_manifests` | imodel_id | `hub manifest download` | `hub manifest download` (etag), `hub manifest list` |
+| `imodels` | imodel_id | `hub briefcase download`, `hub checkpoint download`, `hub create`, `hub briefcase acquire-id`, `cache update` | `cache list-imodels`, `resolveCheckpointTarget` |
+| `schema_version` | -- | `migrateCacheDb` | `migrateCacheDb` |
 
-Every table stores an absolute `file_path` and a `downloaded_at` default of `datetime('now')`.
+The cache stores absolute paths for each iModel in `file_path` and a `downloaded_at` default of
+`datetime('now')`.
 `downloaded_manifests` also keeps the HTTP `etag`, which `hub manifest download` sends back as a
 conditional request so an unchanged manifest is not fetched twice.
 
-The index records **what was downloaded, not what exists**. Nothing reconciles it against the
-file system except `local clear`, which removes both together.
+The index only records what was downloaded via the CLI, it doesn't track changes to the 
+filesystem made outside of the CLI.
 
 `imod cache list-db` dumps every table as a formatted table; `imod cache list-imodels` presents
-the briefcase and checkpoint rows grouped by iModel.
+the briefcase and checkpoint rows grouped by iModel, with each iModel's name when `imodels` has
+it.
+
+### iModel details
+
+The `imodels` table holds iModel Id, iTwin Id, Name, Display Name and Description about each 
+iModel stored in the cache.  It is automatically filled when a hub command accesses the iModel, 
+and be directly updated using `imod cache update`.
 
 ## Schema
 
-This is the tracked definition of the cache database. `initSchema` in `src/cache/cache-db.ts` is
-the implementation of it; the two change together, and a change to either is a change to the
-design. It is reproduced verbatim below rather than summarised, so a diff of this file shows
-exactly what moved.
+This is the tracked definition of the cache database, at **version 2**. `MIGRATIONS` in
+`src/cache/schema.ts` is the implementation of it; the two change together, and a change to
+either is a change to the design. It is reproduced verbatim below rather than summarized, so a
+diff of this file shows exactly what moved.
 
 ```sql
+CREATE TABLE IF NOT EXISTS imodels (
+  imodel_id TEXT NOT NULL PRIMARY KEY,
+  itwin_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  display_name TEXT,
+  description TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_imodels_itwin ON imodels (itwin_id);
+
+CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
+
 CREATE TABLE IF NOT EXISTS briefcase_ids (
   imodel_id TEXT NOT NULL,
   briefcase_id INTEGER NOT NULL,
@@ -119,39 +140,44 @@ CREATE TABLE IF NOT EXISTS downloaded_manifests (
 Notes:
 
 - **`journal_mode = WAL`**, set on every open.
-- **No explicit indexes.** The only four are SQLite's automatic primary-key indexes
-  (`sqlite_autoindex_*`). Every lookup the code performs is by full primary key --
-  `resolveIModelKey` queries `(imodel_id, briefcase_id)` and `(imodel_id, changeset_id)` -- so it
-  hits those. `cache list-imodels` and `cache list-db` scan, which is fine at this row count.
+- **One explicit index**, `ix_imodels_itwin`, for finding an iTwin's iModels; everything else
+  relies on SQLite's automatic primary-key indexes (`sqlite_autoindex_*`). Every lookup the code
+  performs is by full primary key -- `resolveIModelKey` queries `(imodel_id, briefcase_id)` and
+  `(imodel_id, changeset_id)`, and `imodels` is keyed on `imodel_id` alone precisely because that
+  is what the other tables reference. `cache list-imodels` and `cache list-db` scan, which is fine
+  at this row count.
 - **No foreign keys**, so a `downloaded_briefcases` row does not require a `briefcase_ids` row.
 - **`file_path` is absolute**, and is the value iTwin.js reported for the downloaded file rather
   than one the CLI composed.
 - **Timestamps are text**, from SQLite's `datetime('now')`, so they are UTC to the second.
 
-### Changing the schema
+### Versioning
 
-The mechanism today is `CREATE TABLE IF NOT EXISTS`, run on every open. `PRAGMA user_version` has
-never been set; it reads **0**, as does `application_id`.
+The version lives in the `schema_version` table, holding one row, absence of this table indicates 
+schema version 1.
 
-That mechanism carries exactly one safe change: **adding a new table**, which appears on existing
-caches at the next open. Anything else does not take effect and does not complain. Adding a column
-to a table that already exists is silently skipped -- confirmed rather than assumed:
+`migrateCacheDb` in `src/cache/schema.ts` runs on every open and resolves the state from what is
+present, never from a sentinel value:
 
-```
-$ sqlite3 probe.db "CREATE TABLE IF NOT EXISTS t (a TEXT NOT NULL, b INTEGER NOT NULL, PRIMARY KEY (a,b));"
-$ sqlite3 probe.db "CREATE TABLE IF NOT EXISTS t (a TEXT NOT NULL, b INTEGER NOT NULL, c TEXT, PRIMARY KEY (a,b));"
-  no error raised
-  columns now: a b
-```
+| `sqlite_master` holds | Meaning | Action |
+| --- | --- | --- |
+| nothing | an empty file: no schema, so no version | create at the current version |
+| the original tables, no `schema_version` | the unversioned schema, i.e. version 1 | migrate forward |
+| `schema_version` | exactly the version it names | migrate forward if behind, fail if ahead |
 
-So a new column, a changed primary key, a new index or a dropped column all need a migration, and
-until one exists such a change must not be made by editing the DDL above alone -- every cache in
-the wild would keep the old shape while the code assumed the new one.
+Each version is applied in its own `IMMEDIATE` transaction so upgrades are atomic.
 
-When that day comes, the pieces are: stamp `PRAGMA user_version` with a schema number, keep the
-statements above as the definition of version *n*, and apply ordered migrations from whatever
-version the file reports. `user_version = 0` today means "created before versioning", which is a
-usable starting point: the current shape can simply be declared version 1.
+### Version history
+
+| Version | Added |
+| --- | --- |
+| 1 | `briefcase_ids`, `downloaded_briefcases`, `downloaded_checkpoints`, `downloaded_manifests`. The original schema, which predates versioning and is recognised by the absence of a stamp. |
+| 2 | `imodels`, its `ix_imodels_itwin` index, and `schema_version` itself. |
+
+Every version has a fixture under `src/test/cache/fixtures/vN.sql`, and a test builds each one,
+upgrades it, and asserts the result is indistinguishable from a cache created fresh at the
+current version. Adding a version without a fixture fails that suite, which is what keeps older
+caches upgradeable as versions accumulate.
 
 ## Concurrency
 

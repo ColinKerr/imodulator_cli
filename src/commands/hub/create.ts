@@ -9,6 +9,7 @@ import {
 } from "@itwin/imodels-client-management";
 import { startIModelHost } from "../../host/imodel-host";
 import { getHubAccess, getHubAuthorization } from "../../host/hub-access";
+import { recordIModelDetails } from "../../cache/imodels";
 
 /**
  * How long to wait for the hub to initialize an uploaded baseline file. The client's own
@@ -72,8 +73,11 @@ export async function runCreateIModel(args: CreateIModelArgs): Promise<string> {
   await startIModelHost();
   const timeOutInMs = applyInitializationTimeout(args.initTimeoutMinutes ?? DEFAULT_INIT_TIMEOUT_MINUTES);
 
-  if (args.resume)
-    return resumeCreateIModel(args, timeOutInMs);
+  if (args.resume) {
+    const resumedId = await resumeCreateIModel(args, timeOutInMs);
+    await recordIModelDetails(resumedId);
+    return resumedId;
+  }
 
   console.log(`Starting to create iModel '${args.name}' in iTwin ${args.itwinId}`);
   console.log(`Process will wait up to ${timeOutInMs / 60_000} minutes after upload for initialization to complete.  Run again with '--resume' if it fails to finish in time.`);
@@ -92,6 +96,7 @@ export async function runCreateIModel(args: CreateIModelArgs): Promise<string> {
   });
 
   console.log(`iModel uploaded and initialized: ${iModelId}. Total time: ${elapsed()}.`);
+  await recordIModelDetails(iModelId);
   return iModelId;
 }
 

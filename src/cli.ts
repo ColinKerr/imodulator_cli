@@ -19,6 +19,7 @@ import { serveStopAllCommand } from "./commands/serve/stop-all";
 import { cacheDirCommand } from "./commands/cache/dir";
 import { cacheListImodelsCommand } from "./commands/cache/list-imodels";
 import { cacheListDbCommand } from "./commands/cache/list-db";
+import { cacheUpdateCommand } from "./commands/cache/update";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
@@ -113,6 +114,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(cacheDirCommand)
           .command(cacheListImodelsCommand)
           .command(cacheListDbCommand)
+          .command(cacheUpdateCommand)
           .demandCommand(1),
       handler: () => {},
     })

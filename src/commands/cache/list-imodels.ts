@@ -3,6 +3,8 @@ import { getCacheDb } from "../../cache/cache-db";
 
 export interface CachedIModel {
   imodelId: string;
+  name?: string;
+  itwinId?: string;
   briefcases: { briefcaseId: number; filePath: string; changesetId: string | null }[];
   checkpoints: { changesetId: string; filePath: string }[];
 }
@@ -16,11 +18,17 @@ export function runListImodels(): CachedIModel[] {
     .prepare("SELECT imodel_id, changeset_id, file_path FROM downloaded_checkpoints")
     .all() as { imodel_id: string; changeset_id: string; file_path: string }[];
 
+  const detailRows = db
+    .prepare("SELECT imodel_id, itwin_id, name FROM imodels")
+    .all() as { imodel_id: string; itwin_id: string; name: string }[];
+  const details = new Map(detailRows.map((r) => [r.imodel_id, r]));
+
   const map = new Map<string, CachedIModel>();
   const ensure = (id: string) => {
     let v = map.get(id);
     if (!v) {
-      v = { imodelId: id, briefcases: [], checkpoints: [] };
+      const detail = details.get(id);
+      v = { imodelId: id, name: detail?.name, itwinId: detail?.itwin_id, briefcases: [], checkpoints: [] };
       map.set(id, v);
     }
     return v;
@@ -48,7 +56,7 @@ export const cacheListImodelsCommand: CommandModule = {
       return;
     }
     for (const item of items) {
-      console.log(`iModel ${item.imodelId}`);
+      console.log(item.name ? `iModel ${item.imodelId}  ${item.name}` : `iModel ${item.imodelId}`);
       for (const b of item.briefcases)
         console.log(`  briefcase ${b.briefcaseId} (changeset ${b.changesetId ?? "?"}): ${b.filePath}`);
       for (const c of item.checkpoints)
