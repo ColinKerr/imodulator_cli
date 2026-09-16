@@ -17,8 +17,13 @@ import { serveBackendCommand } from "./commands/serve/backend";
 import { serveConsoleCommand } from "./commands/serve/console";
 import { serveStopAllCommand } from "./commands/serve/stop-all";
 import { cacheDirCommand } from "./commands/cache/dir";
-import { cacheListImodelsCommand } from "./commands/cache/list-imodels";
-import { cacheListDbCommand } from "./commands/cache/list-db";
+import { cacheListImodelsCommand } from "./commands/cache/list/imodels";
+import { cacheListDbCommand } from "./commands/cache/list/db";
+import { cacheListChangesetsCommand } from "./commands/cache/list/changesets";
+import { downloadChangesetMetadataCommand } from "./commands/hub/changeset/download-metadata";
+import { downloadChangesetFilesCommand } from "./commands/hub/changeset/download-files";
+import { applyChangesetCommand } from "./commands/hub/changeset/apply";
+import { createLocalCheckpointCommand } from "./commands/hub/changeset/create-local-checkpoint";
 import { cacheUpdateCommand } from "./commands/cache/update";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
@@ -67,6 +72,26 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
             handler: () => {},
           })
           .command({
+            command: "changeset <action>",
+            describe: "Work with iModel changesets",
+            builder: (yy) =>
+              yy
+                .command({
+                  command: "download <what>",
+                  describe: "Download changeset metadata or changeset files into the cache",
+                  builder: (yyy) =>
+                    yyy
+                      .command(downloadChangesetMetadataCommand)
+                      .command(downloadChangesetFilesCommand)
+                      .demandCommand(1),
+                  handler: () => {},
+                })
+                .command(applyChangesetCommand)
+                .command(createLocalCheckpointCommand)
+                .demandCommand(1),
+            handler: () => {},
+          })
+          .command({
             command: "manifest <action>",
             describe: "Work with Cloud Backed SQLite manifests for iModels",
             builder: (yy) => yy.command(downloadManifestCommand).command(listManifestCommand).demandCommand(1),
@@ -112,8 +137,17 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
       builder: (y) =>
         y
           .command(cacheDirCommand)
-          .command(cacheListImodelsCommand)
-          .command(cacheListDbCommand)
+          .command({
+            command: "list <what>",
+            describe: "List what the cache holds",
+            builder: (yy) =>
+              yy
+                .command(cacheListImodelsCommand)
+                .command(cacheListChangesetsCommand)
+                .command(cacheListDbCommand)
+                .demandCommand(1),
+            handler: () => {},
+          })
           .command(cacheUpdateCommand)
           .demandCommand(1),
       handler: () => {},

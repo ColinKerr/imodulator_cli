@@ -81,6 +81,26 @@ const MIGRATIONS: Migration[] = [
         );
 
         CREATE INDEX IF NOT EXISTS ix_imodels_itwin ON imodels (itwin_id);
+
+        CREATE TABLE IF NOT EXISTS changesets (
+          imodel_id TEXT NOT NULL,
+          changeset_index INTEGER NOT NULL,
+          changeset_id TEXT NOT NULL,
+          parent_id TEXT,
+          description TEXT,
+          push_date_time TEXT,
+          briefcase_id INTEGER,
+          file_size INTEGER NOT NULL,
+          containing_changes INTEGER,
+          state TEXT,
+          group_id TEXT,
+          creator_id TEXT,
+          file_path TEXT,
+          downloaded_at TEXT,
+          PRIMARY KEY (imodel_id, changeset_index)
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_changesets_id ON changesets (imodel_id, changeset_id);
       `);
     },
   },

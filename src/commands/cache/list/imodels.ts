@@ -1,5 +1,5 @@
 import type { CommandModule } from "yargs";
-import { getCacheDb } from "../../cache/cache-db";
+import { getCacheDb } from "../../../cache/cache-db";
 
 export interface CachedIModel {
   imodelId: string;
@@ -46,7 +46,7 @@ export function runListImodels(): CachedIModel[] {
 }
 
 export const cacheListImodelsCommand: CommandModule = {
-  command: "list-imodels",
+  command: "imodels",
   describe: "List all locally cached iModels",
   builder: (y) => y,
   handler: () => {
