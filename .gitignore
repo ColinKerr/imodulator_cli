@@ -148,3 +148,5 @@ vite.config.ts.timestamp-*
 .configStore/
 # Generated from web/help by the ecsql-help Vite plugin.
 web/public/help/
+
+.DS_Store
