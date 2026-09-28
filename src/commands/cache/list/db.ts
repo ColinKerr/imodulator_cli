@@ -1,16 +1,26 @@
 import type { CommandModule } from "yargs";
-import { getCacheDb } from "../../cache/cache-db";
-import { formatTable, type TableData } from "../../format/table";
+import { getCacheDb } from "../../../cache/cache-db";
+import { formatTable, type TableData } from "../../../format/table";
 
 export interface DbTableDump extends TableData {
   name: string;
 }
 
+/**
+ * Tables this dump leaves out.
+ *
+ * `changesets` runs to tens of thousands of rows for one iModel -- 43,890 for a real one --
+ * which would bury every other table. `imod cache list changesets` shows it, per iModel and by
+ * range.
+ */
+const OMITTED_TABLES = ["changesets"];
+
 export function runListDb(): DbTableDump[] {
   const db = getCacheDb();
-  const tables = db
+  const tables = (db
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-    .all() as { name: string }[];
+    .all() as { name: string }[])
+    .filter(({ name }) => !OMITTED_TABLES.includes(name));
 
   return tables.map(({ name }) => {
     const rows = db.prepare(`SELECT * FROM "${name}"`).all() as Record<string, unknown>[];
@@ -27,7 +37,7 @@ export function runListDb(): DbTableDump[] {
 }
 
 export const cacheListDbCommand: CommandModule = {
-  command: "list-db",
+  command: "db",
   describe: "List contents of the cache db in formatted tables",
   builder: (y) => y,
   handler: () => {

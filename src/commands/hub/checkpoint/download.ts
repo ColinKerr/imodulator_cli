@@ -7,6 +7,7 @@ import { createDownloadProgress } from "../../../host/download-progress";
 import { getHubAccess } from "../../../host/hub-access";
 import { getAccessToken } from "../../../auth/auth-client";
 import { getCacheDb } from "../../../cache/cache-db";
+import { recordIModelDetails } from "../../../cache/imodels";
 import { ensureIModelCacheDir } from "../../../cache/cache-dir";
 import { resolveCheckpointTarget, type IModelTargetArgs } from "../common";
 
@@ -46,6 +47,7 @@ export async function runDownloadCheckpoint(args: DownloadCheckpointArgs): Promi
     )
     .run(imodelId, changeset.id, props.fileName);
 
+  await recordIModelDetails(imodelId);
   return props.fileName;
 }
 

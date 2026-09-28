@@ -4,6 +4,7 @@ import { startIModelHost } from "../../../host/imodel-host";
 import { createDownloadProgress } from "../../../host/download-progress";
 import { getAccessToken } from "../../../auth/auth-client";
 import { getCacheDb } from "../../../cache/cache-db";
+import { recordIModelDetails } from "../../../cache/imodels";
 
 export interface DownloadBriefcaseArgs {
   imodelId: string;
@@ -26,6 +27,7 @@ export async function runDownloadBriefcase(args: DownloadBriefcaseArgs): Promise
       "INSERT OR REPLACE INTO downloaded_briefcases (imodel_id, briefcase_id, file_path, changeset_id) VALUES (?, ?, ?, ?)",
     )
     .run(args.imodelId, args.briefcaseId, props.fileName, props.changeset.id);
+  await recordIModelDetails(args.imodelId);
   return props.fileName;
 }
 
