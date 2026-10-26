@@ -154,6 +154,87 @@ export function clearChangesetFile(imodelId: string, changesetIndex: number): vo
     .run(imodelId, changesetIndex);
 }
 
+/** Forget many changesets' files in one transaction. */
+export function clearChangesetFiles(imodelId: string, changesetIndexes: number[]): void {
+  const db = getCacheDb();
+  const statement = db.prepare(
+    `UPDATE changesets SET file_path = NULL, downloaded_at = NULL
+     WHERE imodel_id = ? AND changeset_index = ?`,
+  );
+  db.transaction(() => {
+    for (const index of changesetIndexes)
+      statement.run(imodelId, index);
+  })();
+}
+
+/** A changeset named by its id, when the cache knows it. */
+export function cachedChangesetById(imodelId: string, changesetId: string): CachedChangeset | undefined {
+  const row = getCacheDb()
+    .prepare("SELECT * FROM changesets WHERE imodel_id = ? AND changeset_id = ?")
+    .get(imodelId, changesetId) as ChangesetRow | undefined;
+  return row === undefined ? undefined : toCachedChangeset(row);
+}
+
+/** Changesets with a file recorded, in index order, one at a time. */
+export function* iterateRecordedChangesetFiles(
+  imodelId: string,
+  range: ChangesetRange = {},
+): Generator<CachedChangeset> {
+  const { where, params } = rangeClause(imodelId, range);
+  const statement = getCacheDb().prepare(
+    `SELECT * FROM changesets WHERE ${where} AND file_path IS NOT NULL ORDER BY changeset_index`,
+  );
+  for (const row of statement.iterate(...params))
+    yield toCachedChangeset(row as ChangesetRow);
+}
+
+/**
+ * Runs of indexes in a range with no file recorded, including indexes with no metadata at all.
+ *
+ * The range's ends default to the lowest and highest index cached. Yielded as inclusive runs
+ * rather than single indexes, so an `end` far past the cached history costs one run, not a loop
+ * over every missing number. Only the index and whether a file is recorded are read.
+ */
+export function* iterateChangesetGaps(
+  imodelId: string,
+  range: ChangesetRange = {},
+): Generator<{ first: number; last: number }> {
+  const { where, params } = rangeClause(imodelId, range);
+  const statement = getCacheDb().prepare(
+    `SELECT changeset_index AS i, file_path IS NOT NULL AS hasFile FROM changesets
+     WHERE ${where} ORDER BY changeset_index`,
+  );
+
+  // The start of the run being built, or undefined when the last index seen had a file.
+  let gapStart: number | undefined = range.start;
+  let next = range.start;
+  for (const row of statement.iterate(...params) as Iterable<{ i: number; hasFile: number }>) {
+    // Indexes skipped since the last row have no metadata, which joins any run in progress.
+    if (next !== undefined && row.i > next && gapStart === undefined)
+      gapStart = next;
+    if (row.hasFile) {
+      if (gapStart !== undefined && gapStart < row.i)
+        yield { first: gapStart, last: row.i - 1 };
+      gapStart = undefined;
+    } else if (gapStart === undefined) {
+      gapStart = row.i;
+    }
+    next = row.i + 1;
+  }
+
+  // Past the last row, every index up to the range's end has no metadata.
+  gapStart ??= next;
+  const last = range.end ?? (next === undefined ? undefined : next - 1);
+  if (gapStart !== undefined && last !== undefined && gapStart <= last)
+    yield { first: gapStart, last };
+}
+
+/** iModels with any changeset metadata cached. */
+export function listIModelsWithChangesets(): string[] {
+  const rows = getCacheDb().prepare("SELECT DISTINCT imodel_id FROM changesets").all() as { imodel_id: string }[];
+  return rows.map((row) => row.imodel_id);
+}
+
 /** The SQL fragment and parameters for an inclusive index range. */
 function rangeClause(imodelId: string, range: ChangesetRange): { where: string; params: unknown[] } {
   const params: unknown[] = [imodelId];

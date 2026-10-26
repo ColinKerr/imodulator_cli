@@ -32,6 +32,7 @@ started it.
     <iModelId>/
       briefcases/<briefcaseId>.bim        + -wal, -shm, -locks sidecars
       checkpoints/<iModelId>_<changesetId>.bim
+      baseline/<iModelId>_baseline.bim      the file the iModel was created from, before any changeset
       changesets/<changesetId>.cs            iTwin.js downloads here, and deletes as it applies
       changeset-cache/<changesetId>.cs       our hard link, which its deletes cannot touch
       manifest.bcv
@@ -41,7 +42,7 @@ started it.
 
 Most things under `imodels/` is managed by iTwin.js. `IModelHost.startup` is given our cache directory and iTwin.js defines `briefcases` and `changesets`.  
 
-imodulator controls `changeset-cache`, `checkpoints`, and downloads `manifest.bcv`.
+imodulator controls `changeset-cache`, `checkpoints`, `baseline`, and downloads `manifest.bcv`.
 
 ## imod.db
 
@@ -53,6 +54,7 @@ to all iModels and iModel related data downloaded by the CLI.
 | `briefcase_ids` | (imodel_id, briefcase_id) |
 | `downloaded_briefcases` | (imodel_id, briefcase_id) |
 | `downloaded_checkpoints` | (imodel_id, changeset_id) |
+| `downloaded_baselines` | imodel_id |
 | `downloaded_manifests` | imodel_id |
 | `imodels` | imodel_id |
 | `changesets` | (imodel_id, changeset_index) |
@@ -76,7 +78,7 @@ and be directly updated using `imod cache update`.
 
 ## Schema
 
-This is the tracked definition of the cache database, at **version 2**. `MIGRATIONS` in
+This is the tracked definition of the cache database, at **version 3**. `MIGRATIONS` in
 `src/cache/schema.ts` is the implementation of it; the two change together, and a change to
 either is a change to the design. It is reproduced verbatim below rather than summarized, so a
 diff of this file shows exactly what moved.
@@ -111,6 +113,14 @@ CREATE TABLE IF NOT EXISTS changesets (
 );
 
 CREATE INDEX IF NOT EXISTS ix_changesets_id ON changesets (imodel_id, changeset_id);
+
+CREATE TABLE IF NOT EXISTS downloaded_baselines (
+  imodel_id TEXT NOT NULL PRIMARY KEY,
+  baseline_id TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  file_path TEXT NOT NULL,
+  downloaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
 
@@ -175,6 +185,7 @@ Each version is applied in its own `IMMEDIATE` transaction so upgrades are atomi
 | --- | --- |
 | 1 | `briefcase_ids`, `downloaded_briefcases`, `downloaded_checkpoints`, `downloaded_manifests`. The original schema, which predates versioning and is recognised by the absence of a stamp. |
 | 2 | `imodels` and `changesets`, their indexes, and `schema_version` itself. |
+| 3 | `downloaded_baselines`. |
 
 Every version has a fixture under `src/test/cache/fixtures/vN.sql`, and a test builds each one,
 upgrades it, and asserts the result is indistinguishable from a cache created fresh at the

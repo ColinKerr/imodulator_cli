@@ -2,7 +2,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BriefcaseManager } from "@itwin/core-backend";
 import { ensureIModelCacheDir } from "./cache-dir";
-import { iterateCachedChangesets, type ChangesetRange } from "./changesets";
+import {
+  cachedChangesetById, clearChangesetFiles, iterateCachedChangesets, iterateRecordedChangesetFiles,
+  recordChangesetFiles, type ChangesetRange,
+} from "./changesets";
 
 /**
  * Keeping downloaded changesets, against iTwin.js deleting them.
@@ -85,4 +88,118 @@ export function restoreChangesetFiles(imodelId: string, range: ChangesetRange = 
   }
 
   return restored;
+}
+
+/** What `repairChangesetFiles` found and did for one iModel. */
+export interface ChangesetRepairResult {
+  imodelId: string;
+  /** Files in the keep directory, plus any adopted from iTwin.js's directory. */
+  filesOnDisk: number;
+  /** Files whose row now points at them and did not before. */
+  recorded: number;
+  /** Files in iTwin.js's directory with no kept name, given one. */
+  adopted: number;
+  /** Names put back in iTwin.js's directory. */
+  relinked: number;
+  /** Rows whose recorded file no longer exists, and are now marked as not downloaded. */
+  cleared: number;
+  /** Files whose changeset id has no cached metadata, so nothing can be recorded for them. */
+  unknown: string[];
+  /** Files whose size does not match the metadata: partial or corrupt. Left on disk, not recorded. */
+  wrongSize: string[];
+}
+
+/** `<id>.cs` files in a directory, as changeset id to path. A missing directory holds none. */
+function changesetFilesIn(dir: string): Map<string, string> {
+  const files = new Map<string, string>();
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return files;
+  }
+  for (const name of names)
+    if (name.endsWith(".cs"))
+      files.set(name.slice(0, -".cs".length), path.join(dir, name));
+  return files;
+}
+
+/** Changeset ids among the files on disk that the cache has no metadata for. */
+export function unknownChangesetIds(imodelId: string): string[] {
+  const ids = new Set([
+    ...changesetFilesIn(changesetKeepDir(imodelId)).keys(),
+    ...changesetFilesIn(BriefcaseManager.getChangeSetsPath(imodelId)).keys(),
+  ]);
+  return [...ids].filter((id) => cachedChangesetById(imodelId, id) === undefined);
+}
+
+/**
+ * Make the cache and the disk agree about one iModel's changeset files, without the network.
+ *
+ * - every file in the keep directory whose size matches its metadata is recorded against it;
+ * - a file in iTwin.js's directory with no kept name is adopted, when its size matches (a size
+ *   that does not is an interrupted download, which the client would delete anyway);
+ * - each kept file gets its name back in iTwin.js's directory, so a download or a pull skips it;
+ * - a row whose recorded file is gone is marked as not downloaded.
+ *
+ * The only files removed are ones a complete file replaces: a different copy under the same name
+ * in iTwin.js's directory, or a wrong-size kept file when iTwin.js's directory holds a complete
+ * one. A wrong-size file with nothing to replace it is left alone and reported. Needs a started
+ * host, for iTwin.js's directory.
+ */
+export function repairChangesetFiles(imodelId: string): ChangesetRepairResult {
+  const keepDir = changesetKeepDir(imodelId);
+  const workDir = BriefcaseManager.getChangeSetsPath(imodelId);
+  const kept = changesetFilesIn(keepDir);
+  const working = changesetFilesIn(workDir);
+  const result: ChangesetRepairResult = {
+    imodelId, filesOnDisk: 0, recorded: 0, adopted: 0, relinked: 0, cleared: 0, unknown: [], wrongSize: [],
+  };
+
+  const toRecord: { changesetIndex: number; filePath: string }[] = [];
+  const ids = new Set([...kept.keys(), ...working.keys()]);
+  for (const id of ids) {
+    const changeset = cachedChangesetById(imodelId, id);
+    if (changeset === undefined) {
+      result.unknown.push(id);
+      continue;
+    }
+
+    let keepPath = kept.get(id);
+    if (keepPath === undefined || fs.statSync(keepPath).size !== changeset.fileSize) {
+      // Nothing usable kept: a complete file in iTwin.js's directory can stand in for it.
+      const workPath = working.get(id);
+      if (workPath === undefined || fs.statSync(workPath).size !== changeset.fileSize) {
+        result.wrongSize.push(id);
+        continue;
+      }
+      keepPath = keepChangesetFile(imodelId, id, workPath);
+      result.adopted++;
+    }
+    result.filesOnDisk++;
+
+    const workPath = path.join(workDir, changesetFileName(id));
+    const work = fs.statSync(workPath, { throwIfNoEntry: false });
+    if (work === undefined || work.ino !== fs.statSync(keepPath).ino) {
+      // A different file under that name is the wrong size or a stale copy; ours replaces it.
+      fs.mkdirSync(workDir, { recursive: true });
+      fs.rmSync(workPath, { force: true });
+      fs.linkSync(keepPath, workPath);
+      result.relinked++;
+    }
+
+    if (changeset.filePath !== keepPath)
+      toRecord.push({ changesetIndex: changeset.index, filePath: keepPath });
+  }
+  recordChangesetFiles(imodelId, toRecord);
+  result.recorded = toRecord.length;
+
+  const gone: number[] = [];
+  for (const changeset of iterateRecordedChangesetFiles(imodelId))
+    if (!fs.existsSync(changeset.filePath!))
+      gone.push(changeset.index);
+  clearChangesetFiles(imodelId, gone);
+  result.cleared = gone.length;
+
+  return result;
 }

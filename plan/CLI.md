@@ -33,6 +33,7 @@ Commands to work with iModel briefcases used to edit an iModel.
 
 Commands to work with iModel checkpoints used for read only tasks
 
+- `imod hub baseline download` - Downloads the baseline file of the iModel specified by `--imodel-id` (or `--url`): the file it was created from, before any changeset.  Saved to `<cache>/imodels/<iModelId>/baseline/<iModelId>_baseline.bim` and recorded in `downloaded_baselines`.  Skipped when a copy of the size the hub reports is already there.  Errors if the baseline's state is not `initialized` or it has no download link.
 - `imod hub checkpoint download` - Downloads the most recent checkpoint for the iModel specified by the `--itwin-id`, and `--imodel-id` parameters.  Alternatively `--url` can be set to a URL containing two GUIDs (the first the iTwin id, the second the iModel id), which replaces the `--itwin-id` and `--imodel-id` parameters.  Optionally `--changeset-id` can be used to specify the version of the checkpoint to download.
 
 ### manifest
@@ -73,8 +74,10 @@ Commands under `imod cache`
 - `imod cache dir` - Lists the cache directory
 - `imod cache list imodels` - lists all local iModels.
 - `imod cache list changesets` - Lists the cached changesets for the iModel specified by `--imodel-id`.  Shows the first `--limit` rows (200 by default, 0 for all) within `--start`/`--end`, with totals for the whole range.
+- `imod cache list changeset-files` - Writes the changeset files for `--imodel-id` to `--out-file`, one `<index> <path>` line per changeset, lowest index first, within `--start`/`--end` as for `list changesets`.  Errors, listing the gaps and writing nothing, if any changeset in the range has no file.  Recorded files missing from disk are left out with a warning suggesting `imod cache repair-changesets`.  Paths are not escaped; cache paths are assumed to have no spaces.
 - `imod cache list db` - lists contents of the cache db in formatted tables.  The changeset tables are omitted.
 - `imod cache update` - Fetches iModel details from the iModels API for every iModel in the cache, or just `--imodel-id`.
+- `imod cache repair-changesets` - For every iModel with a `changeset-cache` or `changesets` directory or changeset rows (or just `--imodel-id`), records the changeset files already on disk in the cache db, relinks iTwin.js's `changesets` directory from `changeset-cache`, and marks rows whose file is gone as not downloaded. Downloads no changeset files; fetches missing changeset metadata from the hub unless `--offline`.
 
 ## Edit commands
 

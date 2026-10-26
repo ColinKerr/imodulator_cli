@@ -48,7 +48,10 @@ export async function runClearLocal(args: ClearLocalArgs): Promise<number> {
   const checkpointDelete = db
     .prepare("DELETE FROM downloaded_checkpoints WHERE imodel_id = ?")
     .run(args.imodelId).changes;
-  return briefcaseDelete + checkpointDelete;
+  const baselineDelete = db
+    .prepare("DELETE FROM downloaded_baselines WHERE imodel_id = ?")
+    .run(args.imodelId).changes;
+  return briefcaseDelete + checkpointDelete + baselineDelete;
 }
 
 export const clearLocalCommand: CommandModule<unknown, ClearLocalArgs> = {

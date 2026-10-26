@@ -8,6 +8,7 @@ import { releaseIdCommand } from "./commands/hub/briefcase/release-id";
 import { downloadBriefcaseCommand } from "./commands/hub/briefcase/download";
 import { pushBriefcaseCommand } from "./commands/hub/briefcase/push";
 import { downloadCheckpointCommand } from "./commands/hub/checkpoint/download";
+import { downloadBaselineCommand } from "./commands/hub/baseline/download";
 import { downloadManifestCommand } from "./commands/hub/manifest/download";
 import { listManifestCommand } from "./commands/hub/manifest/list";
 import { cloneIModelCommand } from "./commands/hub/clone";
@@ -20,11 +21,13 @@ import { cacheDirCommand } from "./commands/cache/dir";
 import { cacheListImodelsCommand } from "./commands/cache/list/imodels";
 import { cacheListDbCommand } from "./commands/cache/list/db";
 import { cacheListChangesetsCommand } from "./commands/cache/list/changesets";
+import { cacheListChangesetFilesCommand } from "./commands/cache/list/changeset-files";
 import { downloadChangesetMetadataCommand } from "./commands/hub/changeset/download-metadata";
 import { downloadChangesetFilesCommand } from "./commands/hub/changeset/download-files";
 import { applyChangesetCommand } from "./commands/hub/changeset/apply";
 import { createLocalCheckpointCommand } from "./commands/hub/changeset/create-local-checkpoint";
 import { cacheUpdateCommand } from "./commands/cache/update";
+import { cacheRepairChangesetsCommand } from "./commands/cache/repair-changesets";
 import { importSchemasCommand } from "./commands/edit/import-schemas";
 import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
@@ -63,6 +66,12 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
                 .command(downloadBriefcaseCommand)
                 .command(pushBriefcaseCommand)
                 .demandCommand(1),
+            handler: () => {},
+          })
+          .command({
+            command: "baseline <action>",
+            describe: "Work with the iModel's baseline file, the file it was created from",
+            builder: (yy) => yy.command(downloadBaselineCommand).demandCommand(1),
             handler: () => {},
           })
           .command({
@@ -144,11 +153,13 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
               yy
                 .command(cacheListImodelsCommand)
                 .command(cacheListChangesetsCommand)
+                .command(cacheListChangesetFilesCommand)
                 .command(cacheListDbCommand)
                 .demandCommand(1),
             handler: () => {},
           })
           .command(cacheUpdateCommand)
+          .command(cacheRepairChangesetsCommand)
           .demandCommand(1),
       handler: () => {},
     })

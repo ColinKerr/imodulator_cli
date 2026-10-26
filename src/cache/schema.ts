@@ -7,7 +7,7 @@ import type Database from "better-sqlite3";
  */
 
 /** The version this build creates and expects. */
-export const CACHE_SCHEMA_VERSION = 2;
+export const CACHE_SCHEMA_VERSION = 3;
 
 /** Where the version lives. Its *absence* means the original, unversioned schema. */
 const VERSION_TABLE = "schema_version";
@@ -101,6 +101,21 @@ const MIGRATIONS: Migration[] = [
         );
 
         CREATE INDEX IF NOT EXISTS ix_changesets_id ON changesets (imodel_id, changeset_id);
+      `);
+    },
+  },
+  {
+    // The iModel's baseline file: the file it was created from, before any changeset.
+    version: 3,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS downloaded_baselines (
+          imodel_id TEXT NOT NULL PRIMARY KEY,
+          baseline_id TEXT NOT NULL,
+          file_size INTEGER NOT NULL,
+          file_path TEXT NOT NULL,
+          downloaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
       `);
     },
   },

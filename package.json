@@ -1,6 +1,6 @@
 {
   "name": "imodulator-cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "iModulator CLI tool (imod) for working with iTwin.js iModels",
   "main": "./dist/imod.js",
   "bin": {
@@ -24,17 +24,17 @@
     "dist/"
   ],
   "dependencies": {
-    "@azure/storage-blob": "^12.32.0",
-    "@itwin/core-backend": "^5.12.4",
-    "@itwin/core-bentley": "^5.12.4",
-    "@itwin/core-common": "^5.12.4",
-    "@itwin/core-frontend": "^5.12.0",
-    "@itwin/ecschema-editing": "^5.12.4",
-    "@itwin/ecschema-locaters": "^5.12.4",
-    "@itwin/ecschema-metadata": "^5.12.4",
-    "@itwin/ecschema-rpcinterface-common": "^5.12.4",
-    "@itwin/ecschema-rpcinterface-impl": "^5.12.4",
-    "@itwin/imodel-transformer": "2.0.0-dev.50",
+    "@azure/storage-blob": "^12.34.0",
+    "@itwin/core-backend": "^5.14.2",
+    "@itwin/core-bentley": "^5.14.2",
+    "@itwin/core-common": "^5.14.2",
+    "@itwin/core-frontend": "^5.14.2",
+    "@itwin/ecschema-editing": "^5.14.2",
+    "@itwin/ecschema-locaters": "^5.14.2",
+    "@itwin/ecschema-metadata": "^5.14.2",
+    "@itwin/ecschema-rpcinterface-common": "^5.14.2",
+    "@itwin/ecschema-rpcinterface-impl": "^5.14.2",
+    "@itwin/imodel-transformer": "2.0.0-dev.66",
     "@itwin/imodels-access-backend": "^6.1.3",
     "@itwin/imodels-client-authoring": "^6.2.2",
     "@itwin/imodels-client-management": "^6.2.2",
@@ -64,9 +64,9 @@
   },
   "allowScripts": {
     "better-sqlite3@13.0.3": true,
-    "@bentley/imodeljs-native@5.12.31": true,
-    "protobufjs@7.6.5": true,
     "esbuild@0.28.2": true,
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "@bentley/imodeljs-native@5.14.55": true,
+    "protobufjs@7.6.6": true
   }
 }

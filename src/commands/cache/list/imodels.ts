@@ -7,6 +7,8 @@ export interface CachedIModel {
   itwinId?: string;
   briefcases: { briefcaseId: number; filePath: string; changesetId: string | null }[];
   checkpoints: { changesetId: string; filePath: string }[];
+  /** The baseline file, when it has been downloaded. */
+  baseline?: { fileSize: number; filePath: string };
 }
 
 export function runListImodels(): CachedIModel[] {
@@ -17,6 +19,10 @@ export function runListImodels(): CachedIModel[] {
   const checkpointRows = db
     .prepare("SELECT imodel_id, changeset_id, file_path FROM downloaded_checkpoints")
     .all() as { imodel_id: string; changeset_id: string; file_path: string }[];
+
+  const baselineRows = db
+    .prepare("SELECT imodel_id, file_size, file_path FROM downloaded_baselines")
+    .all() as { imodel_id: string; file_size: number; file_path: string }[];
 
   const detailRows = db
     .prepare("SELECT imodel_id, itwin_id, name FROM imodels")
@@ -41,6 +47,8 @@ export function runListImodels(): CachedIModel[] {
     });
   for (const r of checkpointRows)
     ensure(r.imodel_id).checkpoints.push({ changesetId: r.changeset_id, filePath: r.file_path });
+  for (const r of baselineRows)
+    ensure(r.imodel_id).baseline = { fileSize: r.file_size, filePath: r.file_path };
 
   return Array.from(map.values());
 }
@@ -61,6 +69,8 @@ export const cacheListImodelsCommand: CommandModule = {
         console.log(`  briefcase ${b.briefcaseId} (changeset ${b.changesetId ?? "?"}): ${b.filePath}`);
       for (const c of item.checkpoints)
         console.log(`  checkpoint ${c.changesetId}: ${c.filePath}`);
+      if (item.baseline)
+        console.log(`  baseline: ${item.baseline.filePath}`);
     }
   },
 };
