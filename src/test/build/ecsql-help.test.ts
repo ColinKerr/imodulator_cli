@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
+import * as fs from "node:fs";
 import * as path from "node:path";
-import {
-  buildEcsqlHelp, pageOrder, readHelpSources, slugify, sourceBaseUrl,
-} from "../../../build/ecsql-help";
+import { buildEcsqlHelp, pageOrder, readReference, slugify, sourceBaseUrl } from "../../../build/ecsql-help";
 
 const HELP_DIR = path.join(__dirname, "..", "..", "..", "web", "help");
-const REFERENCE_DIR = path.join(HELP_DIR, "ecsqlreference");
 const OPTIONS = { sourceBaseUrl: "https://example.invalid/repo/blob/abc123" };
 
 /** A minimal reference: an index plus the one page it links. */
@@ -77,33 +75,35 @@ describe("buildEcsqlHelp", () => {
     expect(() => buildEcsqlHelp(broken, OPTIONS)).toThrow(/unresolved link/);
   });
 
-  it("fails when a page it links is not vendored", () => {
+  it("fails when a page it links is not in the reference", () => {
     const broken = sources({ "index.md": "# Contents\n\n- [gone](./MISSING.md)\n" });
-    expect(() => buildEcsqlHelp(broken, OPTIONS)).toThrow(/not vendored/);
+    expect(() => buildEcsqlHelp(broken, OPTIONS)).toThrow(/not in the reference/);
   });
 });
 
-describe("the vendored reference", () => {
-  const real = readHelpSources(REFERENCE_DIR);
+describe("the real reference", () => {
+  const real = readReference(HELP_DIR);
+  const realOptions = { sourceBaseUrl: sourceBaseUrl(HELP_DIR) };
 
-  it("starts with the index and follows its order", () => {
+  it("starts with the vendored index and follows its order", () => {
     const order = pageOrder(real);
     expect(order[0]).toBe("index.md");
     expect(order[1]).toBe("Operators.md");
     expect(order).toHaveLength(real.size);
   });
 
-  it("builds, which is what proves every hand written anchor still resolves", () => {
-    const html = buildEcsqlHelp(real, { sourceBaseUrl: sourceBaseUrl(HELP_DIR) });
+  it("builds, which is what proves every anchor still resolves", () => {
+    const html = buildEcsqlHelp(real, realOptions);
     for (const file of real.keys())
       expect(html).toContain(`<section id="${path.basename(file, ".md").toLowerCase()}"`);
   });
 
   it("leaves no anchor pointing at an id the document does not have", () => {
-    const html = buildEcsqlHelp(real, { sourceBaseUrl: sourceBaseUrl(HELP_DIR) });
+    const html = buildEcsqlHelp(real, realOptions);
     const ids = new Set([...html.matchAll(/ id="([^"]+)"/g)].map((match) => match[1]));
     const targets = [...html.matchAll(/href="#([^"]+)"/g)].map((match) => match[1]);
     expect(targets.length).toBeGreaterThan(50);
     expect(targets.filter((target) => !ids.has(target))).toEqual([]);
   });
 });
+

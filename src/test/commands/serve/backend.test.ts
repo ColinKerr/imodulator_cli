@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startBackendServer, type RunningServer } from "../../../serve/backend-server";
 import { DEFAULT_KEY, resolveIModelKey } from "../../../serve/open-for-serve";
@@ -70,6 +70,23 @@ describe("resolveIModelKey", () => {
     const resolved = resolveIModelKey(`${briefcase.iModelId}/abc123`);
     expect(resolved.filePath).toBe(briefcase.fileName);
     expect(resolved.source).toBe("checkpoint");
+  });
+
+  it("resolves a bare imodelId to its one checkpoint file, and a path inside the cache", () => {
+    const id = "0f0f0f0f-1111-2222-3333-444444444444";
+    const dir = join(cacheDir, "imodels", id, "checkpoints");
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `${id}_c0ffee.bim`);
+    writeFileSync(file, "");
+    expect(resolveIModelKey(id)).toEqual({ filePath: file, source: "checkpoint" });
+    expect(resolveIModelKey(`${id}/checkpoints/${id}_c0ffee.bim`)).toEqual({ filePath: file, source: "checkpoint" });
+    // A second checkpoint makes the bare id ambiguous, and it is not guessed.
+    writeFileSync(join(dir, `${id}_beef.bim`), "");
+    expect(() => resolveIModelKey(id)).toThrow(/No iModel found/);
+  });
+
+  it("does not resolve a key that climbs out of the cache", () => {
+    expect(() => resolveIModelKey("../../outside.bim")).toThrow(/No iModel found/);
   });
 
   it("reports a key it cannot resolve", () => {

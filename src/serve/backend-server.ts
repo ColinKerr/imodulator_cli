@@ -129,6 +129,10 @@ export async function startBackendServer(args: BackendServerArgs = {}): Promise<
     });
   });
 
+  // Routes of our own go above here. `app.post(/.*/)` below hands every POST to the protocol
+  // handler, so a route added after it is never reached, and fails in a way that looks nothing
+  // like a routing mistake.
+
   // Express 5 rejects a bare "*" path, so the RPC catch-alls are regular expressions. The
   // GET route is not optional: tile content comes back through it.
   app.get("/v3/swagger.json", (req, res) => rpcConfig.protocol.handleOpenApiDescriptionRequest(req, res));

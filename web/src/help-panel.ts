@@ -15,6 +15,9 @@ const MIN_WIDTH = 260;
 /** What the panel always leaves for the editor and results, however far it is dragged open. */
 const MIN_PANES_WIDTH = 320;
 
+/** Which tab of the panel is showing. */
+export type HelpTab = "reference" | "assistant";
+
 export interface HelpPanelElements {
   panel: HTMLElement;
   body: HTMLElement;
@@ -27,17 +30,25 @@ export interface HelpPanelElements {
   divider: HTMLElement;
   /** The editor's text area: clicking it closes the panel unless it is pinned. */
   editor: HTMLElement;
+  referenceTab: HTMLElement;
+  assistantTab: HTMLElement;
+  assistant: HTMLElement;
 }
 
 export class HelpPanel {
   private loaded = false;
   private pinned = false;
+  private tab: HelpTab = "reference";
+  private readonly tabListeners: ((tab: HelpTab) => void)[] = [];
 
   constructor(private readonly ui: HelpPanelElements, private readonly onResize: () => void) {
     ui.button.addEventListener("click", () => void this.toggle());
     ui.close.addEventListener("click", () => this.setOpen(false));
     ui.pin.addEventListener("click", () => this.setPinned(!this.pinned));
     ui.contents.addEventListener("click", () => this.scrollTo("index"));
+    ui.referenceTab.addEventListener("click", () => void this.showTab("reference"));
+    ui.assistantTab.addEventListener("click", () => void this.showTab("assistant"));
+    this.setTab("reference");
     this.setupResizer();
 
     // Pointerdown rather than click: Monaco takes the pointer for its own selection handling,
@@ -72,13 +83,57 @@ export class HelpPanel {
     return this.pinned;
   }
 
+  public get activeTab(): HelpTab {
+    return this.tab;
+  }
+
+  /** Told when the tab changes, so the Assistant can set up the first time it is shown. */
+  public onTabChange(listener: (tab: HelpTab) => void): void {
+    this.tabListeners.push(listener);
+  }
+
   public async toggle(): Promise<void> {
     if (this.isOpen) {
       this.setOpen(false);
       return;
     }
-    await this.load();
+    await this.showTab(this.tab);
     this.setOpen(true);
+  }
+
+  /** Open the panel on a given tab, whether or not it is already open. */
+  public async open(tab: HelpTab): Promise<void> {
+    await this.showTab(tab);
+    if (!this.isOpen)
+      this.setOpen(true);
+  }
+
+  private async showTab(tab: HelpTab): Promise<void> {
+    this.setTab(tab);
+    // Only the reference needs fetching, and only the first time it is asked for.
+    if (tab === "reference")
+      await this.load();
+  }
+
+  private setTab(tab: HelpTab): void {
+    this.tab = tab;
+    const onReference = tab === "reference";
+    const panes: [HelpTab, HTMLElement, HTMLElement][] = [
+      ["reference", this.ui.body, this.ui.referenceTab],
+      ["assistant", this.ui.assistant, this.ui.assistantTab],
+    ];
+    for (const [name, pane, button] of panes) {
+      pane.hidden = name !== tab;
+      button.setAttribute("aria-selected", String(name === tab));
+      button.classList.toggle("active", name === tab);
+    }
+    // Contents is a reference-only action; there is nothing to scroll to on the other tabs.
+    this.ui.contents.hidden = !onReference;
+    // The Assistant starts wider than the reference, until the user drags the panel to a width of their own.
+    this.ui.panel.classList.toggle("assistant-open", tab === "assistant");
+    for (const listener of this.tabListeners)
+      listener(tab);
+    this.onResize();
   }
 
   /** Fetched on first open, then kept: most sessions never ask for it. */
@@ -107,7 +162,7 @@ export class HelpPanel {
     this.onResize();
   }
 
-  private setPinned(pinned: boolean): void {
+  public setPinned(pinned: boolean): void {
     this.pinned = pinned;
     this.ui.pin.setAttribute("aria-pressed", String(pinned));
     this.ui.pin.classList.toggle("pinned", pinned);

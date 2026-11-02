@@ -16,6 +16,42 @@ IMOD_REDIRECT_URI=http://localhost:3000/signin-callback
 IMOD_ISSUER_URL=https://ims.bentley.com
 ```
 
+### The query console's Assistant
+
+The Assistant tab of `imod serve console` answers questions about the open iModel with the
+query agent function, a separate service. To turn it on, add the function's URL to `.env`:
+
+```env
+IMOD_AGENT_FUNCTION_URL=<the function's URL>
+```
+
+The console passes this URL to the browser, and the browser sends each turn to the function at
+`<url>/turn`. The function must allow the console's origin. Without the variable, or when the
+function does not answer, the Assistant tab says the agent is not set up; the rest of the
+console works as before.
+
+The function may ask for an **access key**. The Assistant then shows a box for it above the chat,
+with the function's reason (no key, a key it does not know, or a key that is used up). Paste the
+key you were given there. It is kept in your browser and sent with every question. A new key starts
+a new chat.
+
+**What the agent sends.** The agent function and the model provider, Anthropic, are outside your machine, so:
+
+| What | Goes to the function | Goes on to Anthropic |
+|---|---|---|
+| Your question | Yes | Yes |
+| The text in the query editor | Yes | Yes, up to 4,000 characters |
+| The iModel's name | Yes | Yes |
+| The results of the startup queries about the iModel | Yes | Yes |
+| Earlier questions and answers in the chat, with some of their rows | Yes | Yes, shortened |
+| The rows and errors of the queries the agent runs on your iModel | Yes | Yes, up to the limits on results |
+| The iModel file itself | No | No |
+
+Do not use the Assistant on an iModel whose contents may not be shared in that way. The rest of the console does
+not send your data anywhere.
+
+See [CONSOLE.md](./plan/commands/serve/CONSOLE.md#assistant) for more about the tab.
+
 Install packages and build:
 
 ```bash

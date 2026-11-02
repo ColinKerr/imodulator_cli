@@ -1,11 +1,13 @@
 import type { CommandModule } from "yargs";
 import { DEFAULT_PORT } from "../../serve/backend-server";
-import { startServerProcess, stopServerProcess, type ServerRecord } from "../../serve/server-process";
+import { foregroundRequested, holdForeground, startServerProcess, stopServerProcess, type ServerRecord } from "../../serve/server-process";
 
 export interface ServeBackendArgs {
   imodelPath?: string;
   port?: number;
   stop?: boolean;
+  /** Stay attached, with the log in this terminal, until Ctrl+C. */
+  foreground?: boolean;
 }
 
 export interface ServeBackendResult {
@@ -30,9 +32,11 @@ export async function runServeBackend(args: ServeBackendArgs): Promise<ServeBack
     return { stopped: result.stopped };
   }
 
+  const foreground = foregroundRequested(args.foreground);
   const server = await startServerProcess("backend", {
     port: args.port,
     env: { IMOD_SERVE_IMODEL_PATH: args.imodelPath },
+    foreground,
   });
 
   console.log(`Backend server listening at ${server.url} (pid ${server.pid}).`);
@@ -40,6 +44,11 @@ export async function runServeBackend(args: ServeBackendArgs): Promise<ServeBack
     console.log(`Opened ${server.defaultIModel.filePath} with key "${server.defaultIModel.key}".`);
   console.log(`Open an iModel:  curl -X POST ${server.url}/open -H "Content-Type: application/json" -d '{"key":"<path or imodelId/briefcaseId>"}'`);
   console.log(`Log:             ${server.logFile}`);
+  if (foreground) {
+    console.log("Stop it with:    Ctrl+C");
+    await holdForeground();
+    return { server, stopped: true };
+  }
   console.log(`Stop it with:    imod serve backend --stop`);
 
   return { server };
@@ -63,8 +72,13 @@ export const serveBackendCommand: CommandModule<unknown, ServeBackendArgs> = {
         type: "boolean",
         default: false,
         describe: "Stop the running backend server",
+      })
+      .option("foreground", {
+        type: "boolean",
+        default: false,
+        describe: "Stay attached: print the server logs in this terminal, and stop on Ctrl+C. IMOD_SERVE_FOREGROUND=1 does the same",
       }) as never,
   handler: async (argv) => {
-    await runServeBackend({ imodelPath: argv.imodelPath, port: argv.port, stop: argv.stop });
+    await runServeBackend({ imodelPath: argv.imodelPath, port: argv.port, stop: argv.stop, foreground: argv.foreground });
   },
 };

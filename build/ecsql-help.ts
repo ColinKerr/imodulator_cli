@@ -1,20 +1,21 @@
 /**
- * Turns the vendored ECSql reference markdown into the single HTML document the console's
- * help panel shows.
+ * Turns the vendored ECSql reference into the single HTML document the console's help panel
+ * shows.
  *
- * One document rather than 27: every cross-page link then becomes a plain anchor within the
- * panel, so there is no navigation to write, and the browser's own find searches the whole
- * reference at once.
+ * One document rather than one per page: every cross-page link then becomes a plain anchor
+ * within the panel, so there is no navigation to write, and the browser's own find searches
+ * the whole reference at once.
  *
- * The sources are a verbatim copy of `docs/learning/ecsqlreference` from itwinjs-core; see
- * web/help/PROVENANCE.json for the commit and web/help/LICENSE.md for the notice.
+ * `web/help/ecsqlreference` is a verbatim copy of `docs/learning/ecsqlreference` from
+ * itwinjs-core. See web/help/PROVENANCE.json for the commit and web/help/LICENSE.md for the
+ * notice. Nothing here may be edited: `npm run sync:ecsql-help` overwrites it.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Marked, type MarkedExtension, type Token, type Tokens } from "marked";
 
-/** The table of contents, and the page order everything else follows. */
+/** The vendored table of contents, and the page order the vendored pages follow. */
 const INDEX_FILE = "index.md";
 
 /**
@@ -59,7 +60,7 @@ export interface HelpOptions {
 export function slugify(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,./:;<=>?@[\]^`{|}~]/g, "")
+    .replace(/[ -⁯⸀-⹿\\'!"#$%&()*+,./:;<=>?@[\]^`{|}~]/g, "")
     .trim()
     .replace(/\s/g, "-");
 }
@@ -110,7 +111,6 @@ interface LinkReference {
 }
 
 interface RenderedPage {
-  file: string;
   slug: string;
   html: string;
 }
@@ -121,16 +121,19 @@ interface Collector {
   links: LinkReference[];
 }
 
+
 /**
  * Render one page, prefixing every heading id with the page and rewriting every link.
  *
  * Heading text repeats across the reference -- four pages have a `Returns` heading -- so
  * unprefixed ids would collide the moment the pages share a document.
+ *
+ * `known` is every page of the reference, so a link to one becomes an anchor to its section.
  */
 function renderPage(
   file: string,
   markdown: string,
-  sources: ReadonlyMap<string, string>,
+  known: ReadonlySet<string>,
   collector: Collector,
   options: HelpOptions,
 ): string {
@@ -153,7 +156,7 @@ function renderPage(
 
     // Another page of the reference.
     const name = path.basename(target);
-    if (target.startsWith("./") && sources.has(name)) {
+    if (target.startsWith("./") && known.has(name)) {
       const targetSlug = pageSlug(name);
       const rewritten = fragment ? `#${targetSlug}--${fragment}` : `#${targetSlug}`;
       collector.links.push({ from: file, href, target: rewritten });
@@ -161,7 +164,7 @@ function renderPage(
     }
 
     if (target.startsWith("./"))
-      throw new Error(`${file}: link to a page that is not vendored: ${href}`);
+      throw new Error(`${file}: link to a page that is not in the reference: ${href}`);
 
     // Out of the reference directory, so out to the source repository.
     const resolved = path.posix.normalize(path.posix.join("docs/learning/ecsqlreference", target));
@@ -193,7 +196,7 @@ function renderPage(
   return new Marked(extension).parse(markdown, { async: false });
 }
 
-/** The order pages appear in: the index first, then the order the index links them. */
+/** The order the vendored pages appear in: the index first, then the order the index links them. */
 export function pageOrder(sources: ReadonlyMap<string, string>): string[] {
   const index = sources.get(INDEX_FILE);
   if (index === undefined)
@@ -213,19 +216,20 @@ export function pageOrder(sources: ReadonlyMap<string, string>): string[] {
 }
 
 /**
- * Build the help document.
+ * Build the help document from the reference's pages, keyed by file name.
  *
- * Throws when a link cannot be resolved, which is the point: the anchors in these files are
- * written by hand, and a stale one is invisible until someone clicks it.
+ * Throws when a link cannot be resolved, which is the point: a heading renamed upstream is
+ * caught at the next sync rather than found later as a dead anchor.
  */
-export function buildEcsqlHelp(sources: ReadonlyMap<string, string>, options: HelpOptions): string {
+export function buildEcsqlHelp(reference: ReadonlyMap<string, string>, options: HelpOptions): string {
   const collector: Collector = { ids: new Set(), links: [] };
   const pages: RenderedPage[] = [];
+  const known = new Set(reference.keys());
 
-  for (const file of pageOrder(sources)) {
+  for (const file of pageOrder(reference)) {
     const slug = pageSlug(file);
     collector.ids.add(slug);
-    pages.push({ file, slug, html: renderPage(file, sources.get(file)!, sources, collector, options) });
+    pages.push({ slug, html: renderPage(file, reference.get(file)!, known, collector, options) });
   }
 
   const broken = collector.links.filter(
@@ -252,16 +256,23 @@ export function buildEcsqlHelp(sources: ReadonlyMap<string, string>, options: He
     })
     .join("\n");
 
-  return `<!-- Generated from web/help/ecsqlreference. Do not edit. -->\n${body}\n`;
+  return `<!-- Generated from web/help. Do not edit. -->\n${body}\n`;
 }
 
-/** Read the vendored markdown, keyed by file name. */
+/** Read markdown from a source directory, keyed by file name. Absent directory reads as empty. */
 export function readHelpSources(dir: string): Map<string, string> {
   const sources = new Map<string, string>();
+  if (!fs.existsSync(dir))
+    return sources;
   for (const file of fs.readdirSync(dir).sort())
     if (file.endsWith(".md"))
       sources.set(file, fs.readFileSync(path.join(dir, file), "utf8"));
   return sources;
+}
+
+/** Read the vendored reference's pages. */
+export function readReference(helpDir: string): Map<string, string> {
+  return readHelpSources(path.join(helpDir, "ecsqlreference"));
 }
 
 interface Provenance {

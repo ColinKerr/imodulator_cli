@@ -1,0 +1,41 @@
+/*
+ * The controls' styles. Colours come from variables a host can set on any ancestor; each has a
+ * plain fallback, so the controls look right with none set.
+ */
+.qa-chat { display: flex; flex-direction: column; height: 100%; min-height: 0; font: inherit; color: var(--qa-text, inherit); }
+.qa-messages { flex: 1 1 auto; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 10px; }
+.qa-question { align-self: flex-end; max-width: 85%; padding: 6px 10px; border-radius: 8px; background: var(--qa-question-bg, #e8eef8); white-space: pre-wrap; margin-left: auto; width: fit-content; }
+.qa-answer, .qa-progress, .qa-error, .qa-notice { max-width: 95%; padding: 6px 10px; border-radius: 8px; background: var(--qa-answer-bg, #f4f4f4); white-space: pre-wrap; margin-top: 6px; }
+.qa-progress, .qa-muted, .qa-notice { color: var(--qa-muted, #666); }
+.qa-error { color: var(--qa-error, #a40000); }
+.qa-dots { display: inline-block; width: 1.5em; }
+/* Each turn keeps its full height: the messages scroll, and a query's box must not be squeezed over its button. */
+.qa-turn { flex-shrink: 0; min-width: 0; }
+/* The answer, its query and the button stack in one column, each keeping its full height. */
+.qa-answer { display: flex; flex-direction: column; gap: 6px; }
+.qa-answer > *, .qa-query > * { flex: none; min-width: 0; }
+.qa-query { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+/* Long lines wrap rather than scroll: Safari leaves no room for a horizontal scroll bar here. */
+.qa-query pre { align-self: stretch; margin: 0; padding: 6px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--qa-code-bg, #fff); border: 1px solid var(--qa-border, #ddd); border-radius: 4px; }
+.qa-compose { border-top: 1px solid var(--qa-border, #ddd); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.qa-input { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; }
+.qa-controls { display: flex; gap: 6px; justify-content: flex-end; }
+.qa-feedback { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qa-feedback label { display: flex; flex-direction: column; width: 100%; gap: 2px; }
+.qa-feedback textarea { font: inherit; }
+.qa-feedback-preview { width: 100%; margin: 0; overflow-x: auto; }
+.qa-workbench-frame { container-type: inline-size; height: 100%; min-height: 0; }
+.qa-workbench { display: flex; height: 100%; min-height: 0; gap: 8px; }
+.qa-workbench-chat { flex: 3 1 0; min-width: 0; display: flex; flex-direction: column; }
+.qa-workbench-side { flex: 2 1 0; min-width: 0; overflow-y: auto; border-left: 1px solid var(--qa-border, #ddd); padding: 0 8px; }
+.qa-tabs { display: flex; gap: 4px; position: sticky; top: 0; background: var(--qa-bg, #fff); padding: 6px 0; }
+.qa-tabs [aria-selected="true"] { font-weight: 600; }
+.qa-results table { border-collapse: collapse; font-size: 0.9em; }
+.qa-results th, .qa-results td { border: 1px solid var(--qa-border, #ddd); padding: 2px 6px; text-align: left; vertical-align: top; }
+/* By the control's own width, not the window's: it often sits in a side pane. */
+@container (max-width: 700px) {
+  .qa-workbench { flex-direction: column; }
+  .qa-workbench-chat { flex: 1 1 auto; min-height: 60%; }
+  .qa-workbench-side { flex: 0 0 auto; max-height: 40%; border-left: none; border-top: 1px solid var(--qa-border, #ddd); }
+}
+.qa-answer-actions { display: flex; gap: 6px; }

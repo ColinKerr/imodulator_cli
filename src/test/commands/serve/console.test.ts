@@ -69,6 +69,22 @@ describe("imod serve console", () => {
     }
   });
 
+  describe("the query agent's configuration", () => {
+    it("gives the browser the agent function's URL, which is its API, when one is set", async () => {
+      const saved = process.env.IMOD_AGENT_FUNCTION_URL;
+      process.env.IMOD_AGENT_FUNCTION_URL = " http://127.0.0.1:3990 ";
+      try {
+        const { url } = await start();
+        expect((await (await fetch(`${url}/config.json`)).json()).agentFunctionUrl).toBe("http://127.0.0.1:3990");
+      } finally {
+        if (saved === undefined)
+          delete process.env.IMOD_AGENT_FUNCTION_URL;
+        else
+          process.env.IMOD_AGENT_FUNCTION_URL = saved;
+      }
+    });
+  });
+
   it("does not trust a recorded backend that is not answering", async () => {
     writeFileSync(
       serverRecordPath("backend"),

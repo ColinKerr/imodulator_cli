@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { BriefcaseDb, IModelDb, SnapshotDb } from "@itwin/core-backend";
 import { getCacheDb } from "../cache/cache-db";
+import { getCacheDir } from "../cache/cache-dir";
 
 /** The key the iModel supplied by `--imodel-path` is registered under. */
 export const DEFAULT_KEY = "default";
@@ -48,9 +50,41 @@ export function resolveIModelKey(key: string): ResolvedIModel {
       return { filePath: row.file_path, source: "checkpoint" };
   }
 
+  // A bare iModel id with one checkpoint, or a file inside the cache's imodels directory.
+  const inCache = resolveInCacheDir(key, getCacheDir());
+  if (inCache)
+    return { filePath: inCache, source: key.includes("/briefcases/") ? "briefcase" : "checkpoint" };
+
   throw new Error(
-    `No iModel found for "${key}". Pass a path to an iModel file, or <imodelId>/<briefcaseId> or <imodelId>/<changesetId> for one in the cache.`,
+    `No iModel found for "${key}". Pass a path to an iModel file, <imodelId>/<briefcaseId> or <imodelId>/<changesetId> for one in the cache, ` +
+      "a bare <imodelId> with one checkpoint, or <imodelId>/checkpoints/<file>.bim.",
   );
+}
+
+/**
+ * The key forms found from the cache's folders rather than its database:
+ *
+ * - a path inside the cache's `imodels` directory, such as `<imodelId>/checkpoints/<file>.bim`;
+ * - a bare `<imodelId>`, meaning its one checkpoint named `<imodelId>_….bim`. A bare id with
+ *   several such checkpoints is not guessed;
+ * - `<imodelId>/<briefcaseId>`, as `imodels/<imodelId>/briefcases/<briefcaseId>.bim`.
+ */
+function resolveInCacheDir(key: string, cacheDir: string): string | undefined {
+  const imodels = path.join(cacheDir, "imodels");
+  // Inside the cache only: `..` in a key must not reach out of it.
+  const inCache = path.resolve(imodels, key);
+  if (key.includes("/") && key.endsWith(".bim") && inCache.startsWith(`${path.resolve(imodels)}${path.sep}`) && fs.existsSync(inCache))
+    return inCache;
+  const [imodelId, briefcaseId] = key.split("/");
+  if (!/^[0-9a-fA-F-]{36}$/.test(imodelId ?? ""))
+    return undefined;
+  if (briefcaseId === undefined) {
+    const dir = path.join(imodels, imodelId, "checkpoints");
+    const found = fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.startsWith(`${imodelId}_`) && name.endsWith(".bim")) : [];
+    return found.length === 1 ? path.join(dir, found[0]) : undefined;
+  }
+  const candidate = path.join(imodels, imodelId, "briefcases", `${briefcaseId}.bim`);
+  return fs.existsSync(candidate) ? candidate : undefined;
 }
 
 /**

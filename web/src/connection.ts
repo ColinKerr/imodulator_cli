@@ -42,6 +42,8 @@ export interface ConsoleConfig {
   backendUrl?: string;
   backendRunning: boolean;
   imodelPath?: string;
+  /** The agent function's base URL (`IMOD_AGENT_FUNCTION_URL`). */
+  agentFunctionUrl?: string;
 }
 
 export async function loadConfig(): Promise<ConsoleConfig> {

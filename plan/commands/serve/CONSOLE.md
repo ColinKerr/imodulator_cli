@@ -132,9 +132,12 @@ ECSql notes:
 
 #### Query Help
 
-The ECSql help button hovering in the upper right corner expands a side panel with the full ECSql Reference docs found here: https://www.itwinjs.org/learning/ecsqlreference/ or in itwinjs-core source here: docs/learning/ECSqlReference/index.md.
+The ECSql help button hovering in the upper right corner expands a side panel with two tabs:
 
-The side panel can be pinned to stay open or if not it closes when the user clicks in the query editor text window.
+1. **Reference** — the full ECSql Reference docs, found here: https://www.itwinjs.org/learning/ecsqlreference/ or in itwinjs-core source here: docs/learning/ECSqlReference/index.md.
+2. **Assistant** — an AI agent that helps you write queries. See [Assistant](#assistant) below.
+
+The side panel can be pinned to stay open or if not it closes when the user clicks in the query editor text window. That applies to both tabs: a user who wants the Assistant to stay put while they work in the editor pins it.
 
 The docs are **vendored**, not fetched: `web/help/ecsqlreference` is a verbatim copy of that directory from itwinjs-core (MIT, notice in `web/help/LICENSE.md`, commit in `web/help/PROVENANCE.json`), refreshed with `npm run sync:ecsql-help -- <path-to-itwinjs-core>`. A console pointed at a local briefcase is normally offline, so the reference has to be there without a network.
 
@@ -151,6 +154,31 @@ Panel behaviour:
 - Escape closes it on the same terms as a click in the editor: only when it is not pinned.
 - Anchor clicks are handled by the panel, not the browser, so following a link does not put a fragment on the console's own URL.
 - The document is fetched on first open and kept, since most sessions never ask for it.
+
+#### Assistant
+
+The Assistant tab answers questions about the open iModel, and writes ECSql for them. It is the
+query agent's workbench control (`AgentWorkbench`), from the client library and controls in
+[`query-agent-ui/`](../../../query-agent-ui/README.md); their design is in
+[`query-agent-ui/docs/design.md`](../../../query-agent-ui/docs/design.md). The host code is
+`web/src/assistant-host.ts`.
+
+- **Where the agent is.** The agent is a separate service, the agent function. The console server
+  reads its URL from `IMOD_AGENT_FUNCTION_URL` (in `.env`, see the README) and gives it to the
+  page in `/config.json`. The page checks `GET <url>/turn` once; if the variable is not set, or the
+  function does not answer, the tab says the agent is not set up and the rest of the console works
+  as before.
+- **Who runs the queries.** The browser does: the client runs the agent's queries on the console's
+  own `IModelConnection`, through the backend, and sends their rows to the function with each turn.
+  The backend runs no agent.
+- **A new chat for each iModel.** Opening another iModel starts a new chat, since what the agent
+  has found is about one file.
+- **Using an answer.** "Use this query" puts the answer's query in the editor. With
+  "Replace editor" ticked, each answer's query replaces the editor's text.
+- **Access keys.** When the function refuses a question for want of a key (401), for a removed key
+  (403), or for a used-up one (429), a box above the chat shows its reason and asks for a key. The
+  key is kept in the browser's `localStorage` (`query-agent.access-key`) and sent with every turn.
+  A new key starts a new chat, because a chat stays with the key it began under.
 
 #### Formatting
 

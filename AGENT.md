@@ -1,7 +1,9 @@
 # iModulator CLI
 The iModulator CLI tool uses iTwin.js to iTwin Platform APIs to help you work with iModels.  It is a developer focused tool for developers that want to create, update, transform and inspect iModels.
 
-Read linked markdown files for more details.  Follow links to nested markdown files as needed.
+Read linked markdown files for more details.  Follow links to nested markdown files as needed.  
+
+Use ISO-24495-1-2023 for all writing to make it concise and clearer.
 
 ## Usage
 

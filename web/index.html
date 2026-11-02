@@ -49,19 +49,32 @@
 
       <!-- In flow beside the panes rather than over them, so a pinned panel narrows the
            results instead of covering them. -->
-      <aside id="help-panel" class="help-panel" aria-label="ECSql reference" hidden>
+      <aside id="help-panel" class="help-panel" aria-label="Query help" hidden>
         <!-- Inside the panel rather than beside it, so it appears and disappears with the
              panel instead of needing its own visibility handling. -->
         <div id="help-divider" class="help-divider" title="Drag to resize"></div>
         <div class="help-main">
           <div class="help-header">
-            <span class="help-title">ECSql Reference</span>
+            <div class="help-tabs" role="tablist" aria-label="Query help">
+              <button id="tab-reference" class="help-tab" role="tab" aria-selected="true" aria-controls="help-body">Reference</button>
+              <button id="tab-assistant" class="help-tab" role="tab" aria-selected="false" aria-controls="assistant-panel">Assistant</button>
+            </div>
             <span class="spacer"></span>
             <button id="help-contents" class="help-action" title="Back to contents">☰</button>
             <button id="help-pin" class="help-action" title="Pin open" aria-pressed="false">📌</button>
             <button id="help-close" class="help-action" title="Close">✕</button>
           </div>
-          <div id="help-body" class="help-body"></div>
+
+          <div id="help-body" class="help-body" role="tabpanel" aria-labelledby="tab-reference"></div>
+
+          <div id="assistant-panel" class="assistant" role="tabpanel" aria-labelledby="tab-assistant" hidden>
+            <div class="assistant-bar">
+              <label class="assistant-auto" title="Replace the editor's contents with each answer's query">
+                <input type="checkbox" id="assistant-auto"> Replace editor
+              </label>
+            </div>
+            <div id="assistant-root" class="assistant-root"></div>
+          </div>
         </div>
       </aside>
     </div>

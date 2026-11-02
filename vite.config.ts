@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { buildEcsqlHelp, readHelpSources, sourceBaseUrl } from "./build/ecsql-help";
+import { buildEcsqlHelp, readReference, sourceBaseUrl } from "./build/ecsql-help";
 
 const HELP_DIR = path.join(__dirname, "web", "help");
 const HELP_OUTPUT = path.join(__dirname, "web", "public", "help", "ecsql-reference.html");
@@ -15,9 +15,7 @@ const HELP_OUTPUT = path.join(__dirname, "web", "public", "help", "ecsql-referen
  */
 function ecsqlHelp(): Plugin {
   const generate = (): void => {
-    const html = buildEcsqlHelp(readHelpSources(path.join(HELP_DIR, "ecsqlreference")), {
-      sourceBaseUrl: sourceBaseUrl(HELP_DIR),
-    });
+    const html = buildEcsqlHelp(readReference(HELP_DIR), { sourceBaseUrl: sourceBaseUrl(HELP_DIR) });
     fs.mkdirSync(path.dirname(HELP_OUTPUT), { recursive: true });
     fs.writeFileSync(HELP_OUTPUT, html);
   };
@@ -39,11 +37,14 @@ export default defineConfig({
   root: "web",
   base: "./",
   plugins: [ecsqlHelp()],
+  // The packages in query-agent-ui are linked (file: dependencies), and that folder has its own
+  // React. One copy for the page, or the controls' hooks break.
+  resolve: { dedupe: ["react", "react-dom"] },
   build: {
     outDir: "../dist/web",
     emptyOutDir: true,
     target: "es2022",
-    chunkSizeWarningLimit: 8000,
+    chunkSizeWarningLimit: 9000,
   },
   server: { port: 8081 },
 });

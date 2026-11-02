@@ -1,13 +1,15 @@
 import type { CommandModule } from "yargs";
 import { DEFAULT_CONSOLE_PORT } from "../../serve/console-server";
 import {
-  findRunningServer, readServerRecord, startServerProcess, stopServerProcess, type ServerRecord,
+  findRunningServer, foregroundRequested, holdForeground, readServerRecord, startServerProcess, stopServerProcess, type ServerRecord,
 } from "../../serve/server-process";
 
 export interface ServeConsoleArgs {
   imodelPath?: string;
   port?: number;
   stop?: boolean;
+  /** Stay attached, with the logs in this terminal, until Ctrl+C. */
+  foreground?: boolean;
 }
 
 export interface ServeConsoleResult {
@@ -31,7 +33,7 @@ export interface ServeConsoleResult {
  * A backend that will not start is reported rather than thrown: the console still serves, and
  * the page says there is no backend, which is a better failure than no console at all.
  */
-async function ensureBackend(imodelPath?: string): Promise<{ record?: ServerRecord; started: boolean }> {
+async function ensureBackend(imodelPath: string | undefined, foreground: boolean): Promise<{ record?: ServerRecord; started: boolean }> {
   const running = await findRunningServer("backend");
   if (running)
     return { record: running, started: false };
@@ -45,6 +47,7 @@ async function ensureBackend(imodelPath?: string): Promise<{ record?: ServerReco
         port,
         env: { IMOD_SERVE_IMODEL_PATH: imodelPath },
         startedBy: "console",
+        foreground,
       });
       return { record, started: true };
     } catch (err) {
@@ -86,10 +89,12 @@ export async function runServeConsole(args: ServeConsoleArgs): Promise<ServeCons
     return { stopped: result.stopped, backendStopped: backendResult.stopped };
   }
 
-  const backend = await ensureBackend(args.imodelPath);
+  const foreground = foregroundRequested(args.foreground);
+  const backend = await ensureBackend(args.imodelPath, foreground);
   const server = await startServerProcess("console", {
     port: args.port,
     env: { IMOD_SERVE_IMODEL_PATH: args.imodelPath },
+    foreground,
   });
 
   console.log(`Console listening at ${server.url} (pid ${server.pid}).`);
@@ -100,6 +105,14 @@ export async function runServeConsole(args: ServeConsoleArgs): Promise<ServeCons
   else
     console.warn("Warning: with no backend the console cannot open iModels or run queries.");
   console.log(`Log:          ${server.logFile}`);
+  if (foreground) {
+    // A backend that was already running keeps its own log; only the servers started here print.
+    if (backend.record && !backend.started)
+      console.log(`The backend was already running, so its log stays in ${backend.record.logFile}.`);
+    console.log("Stop it with: Ctrl+C");
+    await holdForeground();
+    return { console: server, backend: backend.record, backendRunning: backend.record !== undefined, backendStarted: backend.started, stopped: true };
+  }
   console.log(`Stop it with: imod serve console --stop`);
 
   return {
@@ -112,7 +125,8 @@ export async function runServeConsole(args: ServeConsoleArgs): Promise<ServeCons
 
 export const serveConsoleCommand: CommandModule<unknown, ServeConsoleArgs> = {
   command: "console",
-  describe: "Start the eyeModel Console, a web app for running ECSql queries against a served iModel",
+  describe: "Start the eyeModel Console, a web app for running ECSql queries against a served iModel. "
+    + "IMOD_AGENT_FUNCTION_URL tells the console's Assistant where the agent function is",
   builder: (y) =>
     y
       .option("imodel-path", {
@@ -128,8 +142,13 @@ export const serveConsoleCommand: CommandModule<unknown, ServeConsoleArgs> = {
         type: "boolean",
         default: false,
         describe: "Stop the running console, and the backend if the console started it",
+      })
+      .option("foreground", {
+        type: "boolean",
+        default: false,
+        describe: "Stay attached: print the server logs in this terminal, and stop on Ctrl+C. IMOD_SERVE_FOREGROUND=1 does the same",
       }) as never,
   handler: async (argv) => {
-    await runServeConsole({ imodelPath: argv.imodelPath, port: argv.port, stop: argv.stop });
+    await runServeConsole({ imodelPath: argv.imodelPath, port: argv.port, stop: argv.stop, foreground: argv.foreground });
   },
 };

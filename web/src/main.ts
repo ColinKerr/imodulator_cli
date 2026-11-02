@@ -11,6 +11,7 @@ import {
 } from "./query-history";
 import { listIModels, loadConfig, openIModel, startFrontend, type ConsoleConfig } from "./connection";
 import { HelpPanel } from "./help-panel";
+import { AssistantHost } from "./assistant-host";
 
 /**
  * Rows appended per fetch. The reader pages from the server itself, so this only decides how
@@ -47,10 +48,14 @@ class Console {
   private config: ConsoleConfig = { backendRunning: false };
   /** True once the count query has reported the real total. */
   private countIsExact = false;
+  /** Assigned by wireUi, which runs before anything can reach it. */
+  private assistant!: AssistantHost;
 
   public async start(): Promise<void> {
     this.config = await loadConfig();
     this.wireUi();
+    // The browser drives the agent with the function.
+    void this.assistant.setFunctionUrl(this.config.agentFunctionUrl);
 
     if (!this.config.backendRunning || !this.config.backendUrl) {
       this.warn("No backend is running. Start one with:  imod serve backend");
@@ -89,14 +94,31 @@ class Console {
     this.editor.onRun(() => void this.run());
     // The reference is independent of the iModel, so it is wired up whether or not one is
     // open -- there is nothing to look up a query against until you have read how to write it.
-    new HelpPanel(
+    const help = new HelpPanel(
       {
         panel: $("help-panel"), body: $("help-body"), button: $("help"),
         contents: $("help-contents"), pin: $("help-pin"), close: $("help-close"),
         divider: $("help-divider"), editor: $("editor"),
+        referenceTab: $("tab-reference"), assistantTab: $("tab-assistant"),
+        assistant: $("assistant-panel"),
       },
       () => this.editor.layout(),
     );
+
+    this.assistant = new AssistantHost(
+      $("assistant-root"),
+      $("assistant-auto") as HTMLInputElement,
+      {
+        editorText: () => this.editor.value(),
+        insertQuery: (ecsql) => {
+          this.editor.setValue(ecsql);
+          this.updateButtons();
+        },
+      },
+    );
+    // Open and pinned on the Assistant from the start. After the listeners above, so the
+    // Assistant sets itself up as it would on a first click.
+    void help.open("assistant").then(() => help.setPinned(true));
     this.setupSplitter();
     window.addEventListener("resize", () => this.editor.layout());
     this.editor.layout();
@@ -151,7 +173,13 @@ class Console {
         seen.add(entry.key);
         const button = document.createElement("button");
         button.className = "picker-entry";
-        button.innerHTML = `<span class="picker-key">${entry.key}</span><span class="picker-path">${entry.filePath}</span>`;
+        // As text: a file name is the file author's to write, and must not become markup.
+        for (const [className, text] of [["picker-key", entry.key], ["picker-path", entry.filePath]]) {
+          const span = document.createElement("span");
+          span.className = className;
+          span.textContent = text;
+          button.appendChild(span);
+        }
         button.addEventListener("click", () => {
           dialog.close();
           void this.open(entry.key);
@@ -185,6 +213,8 @@ class Console {
       this.status(`Reading schemas...`);
       this.schemaInfo = await loadSchemaInfo(this.imodel);
       this.editor.setSchemaInfo(this.schemaInfo);
+      // The agent's findings are about one file, so changing iModels starts a new chat.
+      this.assistant.setIModel(this.imodel, key);
       this.status(`Opened ${key}`);
     } catch (err) {
       this.warn(err instanceof Error ? err.message : String(err));

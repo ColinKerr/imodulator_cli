@@ -58,10 +58,14 @@ export async function startConsoleServer(args: ConsoleServerArgs = {}): Promise<
    */
   app.get("/config.json", async (_req, res) => {
     const backend = await findRunningServer("backend");
+    // Read per request, not at startup, for the same reason as the backend: the environment
+    // can be fixed and the page reloaded, without restarting the console.
     res.json({
       backendUrl: backend?.url,
       backendRunning: backend !== undefined,
       imodelPath: args.imodelPath,
+      // The agent function's API address, which the browser's client posts turns to.
+      ...(process.env.IMOD_AGENT_FUNCTION_URL?.trim() ? { agentFunctionUrl: process.env.IMOD_AGENT_FUNCTION_URL.trim() } : {}),
     });
   });
 

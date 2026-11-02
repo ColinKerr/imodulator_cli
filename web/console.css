@@ -88,6 +88,7 @@ button:not(:disabled):hover { border-color: var(--accent); color: var(--accent);
 .help-button:hover { opacity: 1; }
 
 .help-panel { flex: 0 0 420px; display: flex; min-width: 0; background: var(--bg); }
+.help-panel.assistant-open { flex-basis: min(840px, calc(100% - 320px)); }
 .help-panel[hidden] { display: none; }
 /* The panel's own left edge, and the same 6px flex-basis as the horizontal divider so a pane
    demanding space cannot shrink it away. */
@@ -97,6 +98,26 @@ button:not(:disabled):hover { border-color: var(--accent); color: var(--accent);
 .help-title { font-weight: 600; }
 .help-action { padding: 2px 6px; line-height: 1.2; }
 .help-action.pinned { border-color: var(--accent); background: #eef4fc; }
+.help-tabs { display: flex; gap: 2px; }
+.help-tab { padding: 3px 10px; line-height: 1.2; background: none; border: 1px solid transparent; border-radius: 4px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.help-tab:hover { color: inherit; }
+.help-tab.active { background: var(--bg); border-color: var(--border); color: inherit; }
+
+/* The Assistant tab. The chat scrolls; the composer stays put at the bottom. */
+.assistant { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.assistant[hidden] { display: none; }
+.assistant-bar { display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.assistant-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.assistant-key { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--bar); }
+.assistant-key[hidden] { display: none; }
+.assistant-key-message { color: #a4262c; }
+.assistant-key-row { display: flex; gap: 6px; }
+.assistant-key-row input { flex: 1; min-width: 0; }
+/* The agent's controls take the console's colours. */
+.assistant-root { --qa-border: var(--border); --qa-muted: var(--muted); --qa-question-bg: var(--bar); --qa-error: #a4262c; }
+
+
+.assistant-auto { display: flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; }
 /* The panel is the scroller; the document inside it is one long page. */
 .help-body { flex: 1; overflow: auto; padding: 0 14px 40px; }
 .help-body h1 { font-size: 17px; margin: 18px 0 8px; padding-top: 10px; border-top: 1px solid var(--border); }
