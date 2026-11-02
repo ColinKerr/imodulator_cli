@@ -33,6 +33,7 @@ import { editPartinateCommand } from "./commands/edit/partinate";
 import { editPokeCommand } from "./commands/edit/poke";
 import { usingMapCommand } from "./commands/transform/using-map";
 import { editUpdateProfileCommand } from "./commands/edit/update-profile";
+import { dropTxnsCommand } from "./commands/util/drop-txns";
 import { exportSchemasCommand } from "./commands/util/export-schemas";
 import { mapipulateCommand } from "./commands/util/mapipulate";
 import { mergeSchemaSetCommand } from "./commands/util/merge-schema-set";
@@ -182,6 +183,7 @@ export async function runCli(argv: string[] = hideBin(process.argv)): Promise<vo
           .command(setFedGuidsCommand)
           .command(updateProfileCommand)
           .command(vacuumCommand)
+          .command(dropTxnsCommand)
           .demandCommand(1),
       handler: () => {},
     })
