@@ -12,6 +12,8 @@ import {
 import { listIModels, loadConfig, openIModel, startFrontend, type ConsoleConfig } from "./connection";
 import { HelpPanel } from "./help-panel";
 import { AssistantHost } from "./assistant-host";
+import { createExtensionHost, type ExtensionHost } from "./extension-host";
+import { loadExtensions } from "./extensions";
 
 /**
  * Rows appended per fetch. The reader pages from the server itself, so this only decides how
@@ -37,6 +39,8 @@ class Console {
   private readonly table = new ResultsTable($("results"));
   private history: QueryHistory = emptyHistory();
   private imodel?: IModelConnection;
+  /** The key the open iModel was opened by. */
+  private imodelKey?: string;
   private schemaInfo: SchemaInfo = emptySchemaInfo();
   private lastColumns: ColumnInfo[] = [];
   /**
@@ -50,12 +54,16 @@ class Console {
   private countIsExact = false;
   /** Assigned by wireUi, which runs before anything can reach it. */
   private assistant!: AssistantHost;
+  private help!: HelpPanel;
+  private extensions!: ExtensionHost;
 
   public async start(): Promise<void> {
     this.config = await loadConfig();
     this.wireUi();
     // The browser drives the agent with the function.
     void this.assistant.setFunctionUrl(this.config.agentFunctionUrl);
+    // Not waited for: an extension that is slow to load must not hold up the console.
+    void this.loadExtensions();
 
     if (!this.config.backendRunning || !this.config.backendUrl) {
       this.warn("No backend is running. Start one with:  imod serve backend");
@@ -94,7 +102,7 @@ class Console {
     this.editor.onRun(() => void this.run());
     // The reference is independent of the iModel, so it is wired up whether or not one is
     // open -- there is nothing to look up a query against until you have read how to write it.
-    const help = new HelpPanel(
+    const help = this.help = new HelpPanel(
       {
         panel: $("help-panel"), body: $("help-body"), button: $("help"),
         contents: $("help-contents"), pin: $("help-pin"), close: $("help-close"),
@@ -116,12 +124,39 @@ class Console {
         },
       },
     );
+    this.extensions = createExtensionHost({
+      panel: { addTab: (tab) => help.addTab(tab), open: (id) => help.open(id) },
+      editor: {
+        value: () => this.editor.value(),
+        setValue: (text) => {
+          this.editor.setValue(text);
+          this.updateButtons();
+        },
+        run: () => this.run(),
+      },
+      imodel: { current: () => this.imodelKey, open: (key) => this.open(key) },
+      createReader: (ecsql) => this.imodel?.createQueryReader(ecsql),
+      assistant: this.assistant,
+      setStatus: (message, kind) => (kind === "warning" ? this.warn(message) : this.status(message)),
+    });
     // Open and pinned on the Assistant from the start. After the listeners above, so the
     // Assistant sets itself up as it would on a first click.
     void help.open("assistant").then(() => help.setPinned(true));
     this.setupSplitter();
     window.addEventListener("resize", () => this.editor.layout());
     this.editor.layout();
+  }
+
+  /** Load the extensions the console server lists. One that fails is reported; the rest carry on. */
+  private async loadExtensions(): Promise<void> {
+    const problems = [
+      ...(this.config.extensionProblems ?? []),
+      ...await loadExtensions(this.config.extensions ?? [], this.extensions.api),
+    ];
+    for (const problem of problems)
+      console.warn(problem);
+    if (problems.length > 0)
+      this.warn(problems.join(" "));
   }
 
   private setEnabled(enabled: boolean): void {
@@ -209,6 +244,7 @@ class Console {
     try {
       await this.imodel?.close();
       this.imodel = await openIModel(this.config.backendUrl, key);
+      this.imodelKey = key;
       $("imodel-name").textContent = key;
       this.status(`Reading schemas...`);
       this.schemaInfo = await loadSchemaInfo(this.imodel);
@@ -216,6 +252,7 @@ class Console {
       // The agent's findings are about one file, so changing iModels starts a new chat.
       this.assistant.setIModel(this.imodel, key);
       this.status(`Opened ${key}`);
+      this.extensions.imodelChanged(key);
     } catch (err) {
       this.warn(err instanceof Error ? err.message : String(err));
     }

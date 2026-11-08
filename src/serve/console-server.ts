@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import express from "express";
 import { findRunningServer, type ServerRecord } from "./server-process";
+import { consoleExtensionsFromEnv, extensionUrl } from "./console-extensions";
 
 export const DEFAULT_CONSOLE_PORT = 8080;
 
@@ -66,7 +67,25 @@ export async function startConsoleServer(args: ConsoleServerArgs = {}): Promise<
       imodelPath: args.imodelPath,
       // The agent function's API address, which the browser's client posts turns to.
       ...(process.env.IMOD_AGENT_FUNCTION_URL?.trim() ? { agentFunctionUrl: process.env.IMOD_AGENT_FUNCTION_URL.trim() } : {}),
+      ...extensionsConfig(),
     });
+  });
+
+  /**
+   * The console extensions (`IMOD_CONSOLE_EXTENSIONS`), served from this origin so the page can
+   * import them. Read per request, like the configuration that lists them.
+   */
+  app.get("/extensions/:file", (req, res) => {
+    const match = /^(\d+)\.js$/.exec(req.params.file);
+    const file = match ? consoleExtensionsFromEnv().files[Number(match[1])] : undefined;
+    if (!file) {
+      res.status(404).end();
+      return;
+    }
+    res.set("Cache-Control", "no-store");
+    res.type("text/javascript");
+    // Allowed under a dot folder too: the user named the file, wherever it is.
+    res.sendFile(file, { dotfiles: "allow" });
   });
 
   app.use(express.static(root));
@@ -94,5 +113,14 @@ export async function startConsoleServer(args: ConsoleServerArgs = {}): Promise<
     close: async () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
+  };
+}
+
+/** The extensions for `/config.json`: nothing at all when none are named. */
+function extensionsConfig(): { extensions?: string[]; extensionProblems?: string[] } {
+  const { files, problems } = consoleExtensionsFromEnv();
+  return {
+    ...(files.length > 0 ? { extensions: files.map((_file, index) => extensionUrl(index)) } : {}),
+    ...(problems.length > 0 ? { extensionProblems: problems } : {}),
   };
 }

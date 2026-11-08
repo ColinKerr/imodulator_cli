@@ -44,6 +44,10 @@ export interface ConsoleConfig {
   imodelPath?: string;
   /** The agent function's base URL (`IMOD_AGENT_FUNCTION_URL`). */
   agentFunctionUrl?: string;
+  /** The console extensions to load, as URLs on this server (`IMOD_CONSOLE_EXTENSIONS`). */
+  extensions?: string[];
+  /** Why any named extension was left out. */
+  extensionProblems?: string[];
 }
 
 export async function loadConfig(): Promise<ConsoleConfig> {

@@ -85,6 +85,64 @@ describe("imod serve console", () => {
     });
   });
 
+  describe("console extensions", () => {
+    const withExtensions = async (value: string, body: () => Promise<void>): Promise<void> => {
+      const saved = process.env.IMOD_CONSOLE_EXTENSIONS;
+      process.env.IMOD_CONSOLE_EXTENSIONS = value;
+      try {
+        await body();
+      } finally {
+        if (saved === undefined)
+          delete process.env.IMOD_CONSOLE_EXTENSIONS;
+        else
+          process.env.IMOD_CONSOLE_EXTENSIONS = saved;
+      }
+    };
+
+    it("lists and serves the extension files, in the order named", async () => {
+      const dir = testTempDir("console-extensions");
+      const first = join(dir, "first.js");
+      const second = join(dir, "second.mjs");
+      writeFileSync(first, "export function activate() {}\n");
+      writeFileSync(second, "export const apiVersion = 1;\n");
+      await withExtensions(` ${first} , ${second} `, async () => {
+        const { url } = await start();
+        const config = await (await fetch(`${url}/config.json`)).json();
+        expect(config.extensions).toEqual(["./extensions/0.js", "./extensions/1.js"]);
+        expect(config.extensionProblems).toBeUndefined();
+        const served = await fetch(`${url}/extensions/1.js`);
+        expect(served.status).toBe(200);
+        expect(served.headers.get("content-type")).toMatch(/javascript/);
+        expect(await served.text()).toContain("apiVersion = 1");
+        expect((await fetch(`${url}/extensions/2.js`)).status).toBe(404);
+        expect((await fetch(`${url}/extensions/..%2Ffirst.js`)).status).toBe(404);
+      });
+    });
+
+    it("refuses a URL, a missing file and a file that is not JavaScript, and says why", async () => {
+      const dir = testTempDir("console-extensions-bad");
+      const css = join(dir, "style.css");
+      writeFileSync(css, "body {}\n");
+      await withExtensions(`https://example.com/x.js,${join(dir, "missing.js")},${css}`, async () => {
+        const { url } = await start();
+        const config = await (await fetch(`${url}/config.json`)).json();
+        expect(config.extensions).toBeUndefined();
+        expect(config.extensionProblems).toHaveLength(3);
+        expect(config.extensionProblems[0]).toMatch(/is a URL/);
+        expect(config.extensionProblems[1]).toMatch(/does not exist/);
+        expect(config.extensionProblems[2]).toMatch(/not a \.js or \.mjs file/);
+        expect((await fetch(`${url}/extensions/0.js`)).status).toBe(404);
+      });
+    });
+
+    it("adds nothing to the configuration when none are named", async () => {
+      await withExtensions("", async () => {
+        const { url } = await start();
+        expect(await (await fetch(`${url}/config.json`)).json()).toEqual({ backendRunning: false });
+      });
+    });
+  });
+
   it("does not trust a recorded backend that is not answering", async () => {
     writeFileSync(
       serverRecordPath("backend"),

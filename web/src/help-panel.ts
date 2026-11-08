@@ -15,8 +15,30 @@ const MIN_WIDTH = 260;
 /** What the panel always leaves for the editor and results, however far it is dragged open. */
 const MIN_PANES_WIDTH = 320;
 
-/** Which tab of the panel is showing. */
-export type HelpTab = "reference" | "assistant";
+/** Which tab of the panel is showing: `"reference"`, `"assistant"`, or a tab an extension added. */
+export type HelpTab = string;
+
+/** A tab added after the console's own (`addTab`). */
+export interface AddedTab {
+  id: string;
+  label: string;
+  /** Wider than the reference, as the Assistant is. */
+  wide?: boolean;
+  /** Called once, the first time the tab is shown, with the tab's own element. */
+  mount(container: HTMLElement): void;
+  /** Called each time the tab is shown, after `mount`. */
+  onShow?(): void;
+}
+
+interface Tab {
+  id: string;
+  button: HTMLElement;
+  pane: HTMLElement;
+  wide: boolean;
+  /** Set up on first show; undefined once done, or for the console's own tabs. */
+  mount?: (container: HTMLElement) => void;
+  onShow?: () => void;
+}
 
 export interface HelpPanelElements {
   panel: HTMLElement;
@@ -40,14 +62,19 @@ export class HelpPanel {
   private pinned = false;
   private tab: HelpTab = "reference";
   private readonly tabListeners: ((tab: HelpTab) => void)[] = [];
+  private readonly tabs: Tab[];
 
   constructor(private readonly ui: HelpPanelElements, private readonly onResize: () => void) {
     ui.button.addEventListener("click", () => void this.toggle());
     ui.close.addEventListener("click", () => this.setOpen(false));
     ui.pin.addEventListener("click", () => this.setPinned(!this.pinned));
     ui.contents.addEventListener("click", () => this.scrollTo("index"));
-    ui.referenceTab.addEventListener("click", () => void this.showTab("reference"));
-    ui.assistantTab.addEventListener("click", () => void this.showTab("assistant"));
+    this.tabs = [
+      { id: "reference", button: ui.referenceTab, pane: ui.body, wide: false },
+      { id: "assistant", button: ui.assistantTab, pane: ui.assistant, wide: true },
+    ];
+    for (const tab of this.tabs)
+      tab.button.addEventListener("click", () => void this.showTab(tab.id));
     this.setTab("reference");
     this.setupResizer();
 
@@ -108,7 +135,32 @@ export class HelpPanel {
       this.setOpen(true);
   }
 
+  /**
+   * Add a tab after the others, with a pane of its own beside the reference and the Assistant.
+   * The pane is filled by `mount` the first time the tab is shown.
+   */
+  public addTab(tab: AddedTab): void {
+    if (this.tabs.some((other) => other.id === tab.id))
+      throw new Error(`The side panel already has a tab "${tab.id}".`);
+    const button = document.createElement("button");
+    button.className = "help-tab";
+    button.setAttribute("role", "tab");
+    button.textContent = tab.label;
+    const pane = document.createElement("div");
+    pane.className = "help-added-pane";
+    pane.setAttribute("role", "tabpanel");
+    pane.hidden = true;
+    // After the last tab button, and after the last pane, so the console's own come first.
+    const last = this.tabs[this.tabs.length - 1];
+    last.button.after(button);
+    last.pane.after(pane);
+    this.tabs.push({ id: tab.id, button, pane, wide: tab.wide ?? false, mount: tab.mount, onShow: tab.onShow });
+    button.addEventListener("click", () => void this.showTab(tab.id));
+  }
+
   private async showTab(tab: HelpTab): Promise<void> {
+    if (!this.tabs.some((other) => other.id === tab))
+      throw new Error(`The side panel has no tab "${tab}".`);
     this.setTab(tab);
     // Only the reference needs fetching, and only the first time it is asked for.
     if (tab === "reference")
@@ -118,19 +170,32 @@ export class HelpPanel {
   private setTab(tab: HelpTab): void {
     this.tab = tab;
     const onReference = tab === "reference";
-    const panes: [HelpTab, HTMLElement, HTMLElement][] = [
-      ["reference", this.ui.body, this.ui.referenceTab],
-      ["assistant", this.ui.assistant, this.ui.assistantTab],
-    ];
-    for (const [name, pane, button] of panes) {
-      pane.hidden = name !== tab;
-      button.setAttribute("aria-selected", String(name === tab));
-      button.classList.toggle("active", name === tab);
+    for (const { id, pane, button } of this.tabs) {
+      pane.hidden = id !== tab;
+      button.setAttribute("aria-selected", String(id === tab));
+      button.classList.toggle("active", id === tab);
     }
     // Contents is a reference-only action; there is nothing to scroll to on the other tabs.
     this.ui.contents.hidden = !onReference;
-    // The Assistant starts wider than the reference, until the user drags the panel to a width of their own.
-    this.ui.panel.classList.toggle("assistant-open", tab === "assistant");
+    const shown = this.tabs.find((other) => other.id === tab);
+    // The Assistant, and an added tab that asks to be, start wider than the reference, until the
+    // user drags the panel to a width of their own.
+    this.ui.panel.classList.toggle("assistant-open", shown?.wide ?? false);
+    if (shown?.mount) {
+      const mount = shown.mount;
+      shown.mount = undefined;
+      // An added tab is an extension's code: its failure is shown in its own pane, not thrown here.
+      try {
+        mount(shown.pane);
+      } catch (err) {
+        shown.pane.textContent = `This tab could not be set up: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+    try {
+      shown?.onShow?.();
+    } catch (err) {
+      console.error(err);
+    }
     for (const listener of this.tabListeners)
       listener(tab);
     this.onResize();

@@ -179,6 +179,35 @@ query agent's workbench control (`AgentWorkbench`), from the client library and 
   (403), or for a used-up one (429), a box above the chat shows its reason and asks for a key. The
   key is kept in the browser's `localStorage` (`query-agent.access-key`) and sent with every turn.
   A new key starts a new chat, because a chat stays with the key it began under.
+- **The feedback form** is shown only while an extension has set a feedback handler: the console
+  itself has nowhere to send feedback.
+
+#### Extensions
+
+An extension is a JavaScript module named in `IMOD_CONSOLE_EXTENSIONS` (comma separated local file
+paths; see the README). The console server checks each entry (a URL, a missing file or a file that
+is not `.js` or `.mjs` is left out, with the reason in `/config.json` and on the status line),
+serves the files at `/extensions/<n>.js`, and lists them in `/config.json`. After it starts, the
+page imports each one and calls its `activate(api)`. The module may export `activate` itself, or a
+default object that has it, and may export `apiVersion`; an extension written for another API
+version is not loaded. One that fails to load is reported on the status line; the console and the
+other extensions carry on.
+
+The API (`web/src/extension-api.ts`, version 1):
+
+| Part | What |
+|---|---|
+| `addPanelTab({ id, label, wide?, mount, onShow? })`, `showPanelTab(id)` | A side panel tab after the console's own. `mount` fills the tab's element the first time it is shown |
+| `editor.getText()`, `setText(text)`, `run()` | The query editor; `run` runs into the results table, as the Run button does |
+| `imodel.current()`, `open(key)`, `onChange(listener)` | The open iModel |
+| `runQuery(ecsql, { maxRows?, sampleRows? })` | A query on the open iModel without the results table: whether it ran, its columns, its row count up to the limit, and the first rows |
+| `assistant.ready()`, `ask(question)` | Ask the Assistant a question, as if typed |
+| `assistant.addAnswerAction(turn => ({ label, title?, onClick }))` | A button under each finished answer. `turn` has the question, answer, query, outcome, run id and iModel key |
+| `assistant.setFeedbackHandler(handler)` | Show the feedback form, and receive what the user sends with the answer it is about |
+| `setStatus(message, kind?)` | The status line |
+
+An extension runs in the page with all of the page's rights. Only files on the local machine are
+loaded, and the console listens on `127.0.0.1` only.
 
 #### Formatting
 

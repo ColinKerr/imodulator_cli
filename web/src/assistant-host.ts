@@ -6,15 +6,17 @@
  * the console's own `IModelConnection`, and sends the turns to the agent function, whose URL the
  * console server gives (`IMOD_AGENT_FUNCTION_URL`).
  *
- * The control's feedback form is not shown: the console passes no `onFeedback`, as there is
- * nowhere to send feedback yet.
+ * The console itself has nowhere to send feedback, so the control's feedback form is shown only
+ * while an extension has set a feedback handler. Extensions can also ask a question and add
+ * buttons under each answer (`extension-api.ts`).
  */
 
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { IModelConnection } from "@itwin/core-frontend";
-import { AgentClient, queryRunner, type TurnRefused } from "@query-agent/client";
-import { AgentWorkbench } from "@query-agent/react";
+import { AgentClient, queryRunner, type AgentRun, type TurnRefused } from "@query-agent/client";
+import { AgentWorkbench, type ChatTurn, type Feedback } from "@query-agent/react";
+import type { AnswerAction, AnswerTurn, FeedbackHandler } from "./extension-api";
 import "@query-agent/react/styles.css";
 
 export interface AssistantHostCallbacks {
@@ -36,6 +38,13 @@ export class AssistantHost {
   private session = 0;
   private accessKey: string | undefined = readStoredKey();
   private readonly keyBox: KeyBox;
+  /** A question to ask as if typed, until the chat it was asked in is replaced. */
+  private question?: { text: string; key: number };
+  private questions = 0;
+  private readonly answerActions: ((turn: AnswerTurn) => AnswerAction | undefined)[] = [];
+  private feedbackHandler?: FeedbackHandler;
+  /** The finished runs of this page, newest last, to say which answer a feedback is about. */
+  private readonly finished: AnswerTurn[] = [];
 
   constructor(container: HTMLElement, private readonly autoReplace: HTMLInputElement, private readonly host: AssistantHostCallbacks) {
     this.keyBox = createKeyBox(container, (key) => this.saveKey(key));
@@ -49,6 +58,7 @@ export class AssistantHost {
     storeKey(key);
     this.keyBox.hide();
     if (this.client) {
+      this.question = undefined;
       this.session++;
       this.render();
     } else {
@@ -99,8 +109,89 @@ export class AssistantHost {
         getAccessToken: async () => this.accessKey,
       })
       : undefined;
+    // A question asked in the chat being replaced is not asked again in the new one.
+    this.question = undefined;
     this.session++;
     this.render();
+  }
+
+  /** Whether a question can be answered now. */
+  public get ready(): boolean {
+    return this.client !== undefined;
+  }
+
+  /** Ask a question as if the user typed it. Asked once the agent is free. */
+  public ask(text: string): void {
+    this.question = { text, key: ++this.questions };
+    this.render();
+  }
+
+  /** Offer a button under each finished answer. */
+  public addAnswerAction(action: (turn: AnswerTurn) => AnswerAction | undefined): void {
+    this.answerActions.push(action);
+    this.render();
+  }
+
+  /** Where the feedback form sends; the form shows only while one is set. */
+  public setFeedbackHandler(handler: FeedbackHandler | undefined): void {
+    this.feedbackHandler = handler;
+    this.render();
+  }
+
+  private answerTurn(turn: ChatTurn): AnswerTurn {
+    return {
+      question: turn.question,
+      answer: turn.answer,
+      ...(turn.query ? { query: turn.query } : {}),
+      ...(turn.outcome ? { outcome: turn.outcome } : {}),
+      ...(turn.run ? { runId: turn.run.runId } : {}),
+      ...(this.imodelKey ? { imodelKey: this.imodelKey } : {}),
+    };
+  }
+
+  private runFinished(run: AgentRun, question: string): void {
+    // The answer and query as the chat shows them (`AgentChat`): the submitted ones, when the run submitted.
+    const query = run.structured?.query ?? run.query;
+    this.finished.push({
+      question,
+      answer: run.structured?.explanation ?? run.answer,
+      ...(query ? { query } : {}),
+      outcome: run.stoppedBecause,
+      runId: run.runId,
+      ...(this.imodelKey ? { imodelKey: this.imodelKey } : {}),
+    });
+  }
+
+  /** The buttons under one answer: each extension's, for the answers that have a run. */
+  private actionsFor(turn: ChatTurn): ReactNode {
+    if (!turn.run)
+      return null;
+    const answer = this.answerTurn(turn);
+    const actions = this.answerActions.map((action) => {
+      try {
+        return action(answer);
+      } catch (err) {
+        console.error(err);
+        return undefined;
+      }
+    }).filter((action): action is AnswerAction => action !== undefined);
+    return actions.map((action, index) => createElement("button", {
+      key: index,
+      type: "button",
+      className: "assistant-answer-action",
+      title: action.title,
+      onClick: () => void Promise.resolve().then(() => action.onClick()).catch((err) => console.error(err)),
+    }, action.label));
+  }
+
+  private sendFeedback(feedback: Feedback): void | Promise<void> {
+    // The form names the answer by its question and text. The run is the latest with both; the
+    // chat may show the answer's text tidied, so failing that, the latest with the question.
+    const newestFirst = [...this.finished].reverse();
+    const turn = newestFirst.find((item) => item.question === feedback.question && item.answer === feedback.answer)
+      ?? newestFirst.find((item) => item.question === feedback.question)
+      ?? { question: feedback.question, answer: feedback.answer, ...(this.imodelKey ? { imodelKey: this.imodelKey } : {}) };
+    return this.feedbackHandler?.(feedback, turn);
   }
 
   private waitingForKey(): boolean {
@@ -122,6 +213,10 @@ export class AssistantHost {
           this.host.insertQuery(query);
       },
       onRefused: (refusal: TurnRefused) => this.refused(refusal),
+      onRunFinished: (run: AgentRun, question: string) => this.runFinished(run, question),
+      ...(this.question ? { question: this.question } : {}),
+      ...(this.answerActions.length > 0 ? { answerActions: (turn: ChatTurn) => this.actionsFor(turn) } : {}),
+      ...(this.feedbackHandler ? { onFeedback: (feedback: Feedback) => this.sendFeedback(feedback) } : {}),
     }));
   }
 }

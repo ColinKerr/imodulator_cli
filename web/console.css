@@ -106,6 +106,9 @@ button:not(:disabled):hover { border-color: var(--accent); color: var(--accent);
 /* The Assistant tab. The chat scrolls; the composer stays put at the bottom. */
 .assistant { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .assistant[hidden] { display: none; }
+/* A tab an extension added: its pane scrolls on its own, like the reference. */
+.help-added-pane { flex: 1; min-height: 0; overflow: auto; }
+.help-added-pane[hidden] { display: none; }
 .assistant-bar { display: flex; justify-content: flex-end; padding: 4px 8px; border-bottom: 1px solid var(--border); }
 .assistant-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .assistant-key { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--bar); }

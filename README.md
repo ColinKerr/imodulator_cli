@@ -52,6 +52,22 @@ not send your data anywhere.
 
 See [CONSOLE.md](./plan/commands/serve/CONSOLE.md#assistant) for more about the tab.
 
+### Console extensions
+
+`imod serve console` can load extensions: JavaScript modules that add a tab to the side panel,
+buttons under the Assistant's answers, or a destination for its feedback form. Name the module
+files, comma separated, in `.env`:
+
+```env
+IMOD_CONSOLE_EXTENSIONS=/path/to/my-extension.js
+```
+
+The console server serves each file to the page, which imports it and calls its `activate`
+function with the console's extension API. **An extension runs in the console page with all of the
+page's rights**, including the access key it keeps, so load only files you trust. Only local file
+paths are accepted, never URLs. See [CONSOLE.md](./plan/commands/serve/CONSOLE.md#extensions) for
+the API.
+
 Install packages and build:
 
 ```bash

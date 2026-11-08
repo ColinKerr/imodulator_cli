@@ -3,7 +3,7 @@ The iModulator CLI tool uses iTwin.js to iTwin Platform APIs to help you work wi
 
 Read linked markdown files for more details.  Follow links to nested markdown files as needed.  
 
-Use ISO-24495-1-2023 for all writing to make it concise and clearer.
+Use ISO-24495-1-2023 for all writing to make it concise and clear.  The audience is an experienced software developer that already understands iTwin.js, TypeScript and Node.js.
 
 ## Usage
 
