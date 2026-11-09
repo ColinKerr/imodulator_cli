@@ -10,8 +10,10 @@
 
 import { readCapped, type RunRawQuery } from "./caps";
 import { driveTurns, fetchTurns, runStartupQueries, type AgentRun, type AnswerRows, type ClientOptions, type StartupList, type TurnCall } from "./client";
+import { instanceKeys, readSelection, type InstanceKey, type RunSelection } from "./selection";
+import { ResultPages } from "./result-pages";
 import defaultList from "./startup-queries.json";
-import type { EarlierQuestion, QueryRows, ResultCaps, StartupResult } from "./turn-api";
+import type { AnswerMode, EarlierQuestion, QueryRows, ResultCaps, StartupResult } from "./turn-api";
 
 /** The library's startup query list (`startup-queries.json`): what a client runs when it starts. */
 export const DEFAULT_STARTUP_LIST = defaultList as StartupList;
@@ -54,6 +56,16 @@ export interface AgentClientOptions {
   startupList?: StartupList;
   /** Called when the startup list starts and ends. */
   onExploring?: (exploring: boolean) => void;
+  /**
+   * How answers are to be given, for a host with unified selection (the turn API's `AnswerMode`):
+   *
+   * - `auto`: the host selects elements from answers. The agent decides, question by question,
+   *   whether a question asks to select; `AgentRun.resultType` says what each answer is.
+   * - `select`: the user's preference that every question is a selection request.
+   *
+   * Set from the host's settings, never from the question: the client does not scan questions.
+   */
+  answerMode?: AnswerMode;
 }
 
 export interface AskOptions {
@@ -63,6 +75,8 @@ export interface AskOptions {
   earlier?: readonly EarlierQuestion[];
   /** The token of the chat's last finished run (`AgentRun.token`). Opaque: kept and sent back, never read. */
   token?: string;
+  /** This question's answer mode, in place of the client's (`AgentClientOptions.answerMode`). */
+  answerMode?: AnswerMode;
   onStatus?: (status: AgentStatus) => void;
   signal?: AbortSignal;
 }
@@ -120,18 +134,48 @@ export class AgentClient {
     if (!this.explored && this.options.runQuery)
       options.onStatus?.({ phase: "exploring" });
     const startup = await this.startup;
+    // The host's choice of mode. The agent decides what each question gets; the client never scans it.
+    const answerMode: AnswerMode | undefined = options.answerMode ?? this.options.answerMode;
     const client: ClientOptions = {
       runQuery,
       imodel: imodelName !== undefined ? { name: imodelName, startup } : undefined,
       editorText: options.editorText,
       earlier: options.earlier,
       token: options.token,
+      answerMode,
       onPhase: (phase, ecsql) => options.onStatus?.(phase === "querying" ? { phase, ecsql: ecsql ?? "" } : { phase }),
       signal: options.signal,
     };
     const run = await driveTurns(question, client, this.turns);
-    const answerRows = await this.answerRows(run.structured?.query || run.query);
-    return answerRows ? { ...run, answerRows } : run;
+    const query = run.structured?.query || run.query;
+    const answerRows = await this.answerRows(query);
+    // All the rows, for a table: paged by the query reader, starting from the rows already read.
+    const results = query && runQuery && answerRows && answerRows.error === undefined
+      ? new ResultPages(runQuery, query, { columns: answerRows.columns ?? [], rows: answerRows.rows ?? [], complete: answerRows.truncatedBy === undefined && !answerRows.clipped })
+      : undefined;
+    return { ...run, ...(answerMode ? { answerMode } : {}), ...(answerRows ? { answerRows } : {}), ...(results ? { results } : {}) };
+  }
+
+  /**
+   * The elements a query returns, read in full (its `ECInstanceId` or `id` column, and `ClassName`),
+   * handed to `onKeys` in chunks as they are read: for selecting all the elements of an answer.
+   * Never throws: a failure is the
+   * selection's `error`, as when there is no iModel.
+   */
+  public async readSelection(ecsql: string, onKeys?: (keys: InstanceKey[]) => void | Promise<void>, signal?: AbortSignal): Promise<RunSelection> {
+    if (!this.options.runQuery)
+      return { error: "No iModel is open." };
+    return readSelection(this.options.runQuery, ecsql, onKeys, signal);
+  }
+
+  /**
+   * The instance keys of ids, for selecting them: each element once with its class, read in
+   * batches, and how many of the ids were not elements. Throws when there is no iModel.
+   */
+  public async instanceKeys(ids: readonly string[]): Promise<{ keys: InstanceKey[]; notElements: number }> {
+    if (!this.options.runQuery)
+      throw new Error("No iModel is open.");
+    return instanceKeys(this.options.runQuery, ids);
   }
 
   /**

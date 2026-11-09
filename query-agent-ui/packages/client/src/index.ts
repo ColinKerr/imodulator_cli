@@ -8,3 +8,6 @@ export * from "./caps";
 export * from "./client";
 export * from "./query-runner";
 export * from "./agent-client";
+export * from "./selection";
+export * from "./result-pages";
+

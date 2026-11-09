@@ -4,7 +4,7 @@
  * Node. They are typed here by what is used, so this package depends on neither.
  */
 
-import type { RunRawQuery } from "./caps";
+import type { QueryPageOptions, RunRawQuery } from "./caps";
 
 /** The part of iTwin.js's `ECSqlReader` that the runner uses. */
 export interface QueryReader {
@@ -15,7 +15,7 @@ export interface QueryReader {
 
 /** An `IModelConnection` or an `IModelDb`. */
 export interface QuerySource {
-  createQueryReader(ecsql: string, params?: undefined, options?: { abbreviateBlobs?: boolean }): QueryReader;
+  createQueryReader(ecsql: string, params?: undefined, options?: { abbreviateBlobs?: boolean } & QueryPageOptions): QueryReader;
 }
 
 /**
@@ -27,10 +27,15 @@ export interface QuerySource {
  *   driver sends the error for the model to correct.
  * - **Short rows are padded with nulls.** `toArray()` drops trailing nulls, and a model reading
  *   `["Synchronization"]` under three columns guesses at the missing values.
+ * - **A page is the reader's own** (`QueryPageOptions`): its `limit` and `restartToken` options.
  */
 export function queryRunner(source: QuerySource): RunRawQuery {
-  return async (ecsql) => {
-    const reader = source.createQueryReader(ecsql, undefined, { abbreviateBlobs: true });
+  return async (ecsql, page) => {
+    const reader = source.createQueryReader(ecsql, undefined, {
+      abbreviateBlobs: true,
+      ...(page?.limit ? { limit: page.limit } : {}),
+      ...(page?.restartToken ? { restartToken: page.restartToken } : {}),
+    });
     const columns = (await reader.getMetaData()).map((column) => column.name);
     return {
       columns,

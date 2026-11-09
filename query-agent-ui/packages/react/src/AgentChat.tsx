@@ -8,6 +8,8 @@ import { TurnRefused, type AgentClient, type AgentRun, type AgentStatus } from "
 import { contextOf, FAILED, type Chat, type ChatTurn } from "./chat";
 import { Dots } from "./Dots";
 import { FeedbackForm, type Feedback } from "./Feedback";
+import { SelectElements, type AnswerSelection } from "./SelectElements";
+import { selectableOf, selectAnswerElements, selectsNothing } from "./selection";
 
 export interface AgentChatProps {
   /** The started client, or undefined when the agent is not set up. */
@@ -45,6 +47,24 @@ export interface AgentChatProps {
   question?: { text: string; key: string | number };
   /** The host's own buttons under each finished answer. */
   answerActions?: (turn: ChatTurn, index: number) => ReactNode;
+  /**
+   * The host's unified selection. Each answer that names elements offers "Select N elements",
+   * before the host's own buttons; with `autoSelect`, every element of an answer that names
+   * elements (rows with `ECInstanceId` and `ClassName`) replaces the selection
+   * once the answer is shown.
+   */
+  selection?: AnswerSelection;
+}
+
+/** Select an answer's elements as it arrives. A failure here must not lose the answer. */
+async function autoSelect(run: AgentRun, client: AgentClient, selection: AnswerSelection): Promise<void> {
+  try {
+    const result = await selectAnswerElements(run, client, selection.storage, selection.imodelKey);
+    if (result)
+      selection.onSelected?.(result, run);
+  } catch {
+    // The button under the answer still offers the selection, and says what went wrong.
+  }
 }
 
 /** What the user sees while the agent works. */
@@ -115,6 +135,9 @@ export function AgentChat(props: AgentChatProps): JSX.Element {
     }
     update({ turns: [...before.turns, turn] });
     report(undefined);
+    // After the answer is shown: selecting a million elements must not hold the answer back.
+    if (turn.run && props.selection?.autoSelect && (selectableOf(turn.run) || selectsNothing(turn.run)))
+      void autoSelect(turn.run, client, props.selection);
     setBusy(false);
     stop.current = undefined;
   };
@@ -156,7 +179,12 @@ export function AgentChat(props: AgentChatProps): JSX.Element {
                         {onUseQuery && <button type="button" onClick={() => onUseQuery(turn.query!)}>Use this query</button>}
                       </div>
                     )}
-                    {props.answerActions && <div className="qa-answer-actions">{props.answerActions(turn, index)}</div>}
+                    {(props.answerActions || (props.selection && client)) && (
+                      <div className="qa-answer-actions">
+                        {props.selection && client && <SelectElements run={turn.run} client={client} selection={props.selection} />}
+                        {props.answerActions?.(turn, index)}
+                      </div>
+                    )}
                     {renderAfterAnswer?.(turn, index)}
                   </div>
                 )

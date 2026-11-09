@@ -10,7 +10,7 @@ app's own iModel, and the agent function (a separate service) decides what to as
 | Package | Holds |
 |---|---|
 | `packages/client` | `AgentClient`, the query runner, the turn driver, the startup query list, and the API types |
-| `packages/react` | `AgentChat` (the chat and the ask box), `AgentWorkbench` (the chat with the answer's results and earlier chats beside it; it shows nothing of how the agent worked), and the feedback form |
+| `packages/react` | `AgentChat` (the chat and the ask box), `AgentWorkbench` (the chat with the answer's results and earlier chats beside it; it shows nothing of how the agent worked), the feedback form, and selecting an answer's elements (`selection.ts`) |
 
 ### Use the client
 
@@ -49,6 +49,29 @@ import "@query-agent/react/styles.css";
   editorText={() => editor.value}       // sent with each question
   onUseQuery={(ecsql) => editor.setValue(ecsql)}
   onFeedback={(feedback) => send(feedback)} // only what the user saw and wrote, after they review it
+/>
+```
+
+### Selecting an answer's elements
+
+Start the client with `answerMode: "auto"`, and give the controls the app's unified selection
+store. The agent then decides, question by question, whether the user asked to select elements
+("select the doors on level 2", "select them"). An answer whose rows are elements carries their
+`ECInstanceId` and `ClassName`, and offers "Select N elements": every element, read in full. A
+selection request that finds nothing clears the selection. `run.resultType` says what an answer
+is (`selection` or `answer`).
+
+```tsx
+const client = AgentClient.start({ runQuery: queryRunner(imodel), imodelName: imodel.name, functionUrl, answerMode: "auto" });
+
+<AgentWorkbench
+  client={client}
+  selection={{
+    storage: selectionStorage,          // a SelectionStorage from @itwin/unified-selection
+    imodelKey: imodel.key,
+    autoSelect: true,                   // replace the selection when the answer arrives
+    onSelected: (result) => zoomTo(result.selected.map((key) => key.id)),
+  }}
 />
 ```
 

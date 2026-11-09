@@ -32,6 +32,13 @@
 .qa-tabs [aria-selected="true"] { font-weight: 600; }
 .qa-results table { border-collapse: collapse; font-size: 0.9em; }
 .qa-results th, .qa-results td { border: 1px solid var(--qa-border, #ddd); padding: 2px 6px; text-align: left; vertical-align: top; }
+/* The results table is virtualized: one line per row at ROW_HEIGHT (22px), a header that stays, and its own scroll. */
+.qa-results { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.qa-results-scroll { flex: 1 1 auto; min-height: 120px; overflow: auto; }
+.qa-results-scroll thead th { position: sticky; top: 0; background: var(--qa-background, #fff); }
+.qa-results-scroll td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32em; height: 22px; box-sizing: border-box; }
+.qa-results-scroll tr.qa-spacer { border: none; }
+.qa-results-count { padding: 2px 0; }
 /* By the control's own width, not the window's: it often sits in a side pane. */
 @container (max-width: 700px) {
   .qa-workbench { flex-direction: column; }

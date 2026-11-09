@@ -12,6 +12,8 @@ async function main(): Promise<void> {
   const server = await startBackendServer({
     port: portArg === undefined ? undefined : Number(portArg),
     imodelPath: process.env.IMOD_SERVE_IMODEL_PATH,
+    itwinPlatform: process.env.IMOD_SERVE_ITWIN_PLATFORM === "1",
+    appOrigin: process.env.IMOD_SERVE_APP_ORIGIN || undefined,
   });
 
   process.send?.({
@@ -19,6 +21,7 @@ async function main(): Promise<void> {
     port: server.port,
     url: server.url,
     defaultIModel: server.defaultIModel,
+    itwinPlatform: server.itwinPlatform,
   });
 
   const shutdown = (): void => {

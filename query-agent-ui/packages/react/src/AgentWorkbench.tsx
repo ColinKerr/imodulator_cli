@@ -4,40 +4,43 @@
  */
 
 import { useState } from "react";
-import type { AnswerRows } from "@query-agent/client";
+import type { AnswerRows, ResultPages } from "@query-agent/client";
+import { ResultsTable } from "./ResultsTable";
 import { AgentChat, type AgentChatProps } from "./AgentChat";
 import type { Chat } from "./chat";
 
-export type AgentWorkbenchProps = Omit<AgentChatProps, "renderAfterAnswer" | "renderAfterChat" | "initialChat">;
+export type AgentWorkbenchProps = Omit<AgentChatProps, "renderAfterAnswer" | "renderAfterChat" | "initialChat"> & {
+  /**
+   * Show the last answer's results in a Results tab beside the chat. True by default. A host that
+   * shows them elsewhere (with `AnswerResults`, from `onChange`) sets it to false.
+   */
+  showResults?: boolean;
+};
 
 type Tab = "results" | "history";
 
-function ResultsTable(props: { rows?: AnswerRows }): JSX.Element {
-  if (props.rows?.error !== undefined)
-    return <div className="qa-error">{props.rows.error}</div>;
-  if (!props.rows)
-    return <div className="qa-muted">No results yet.</div>;
-  const { columns = [], rows = [], truncatedBy } = props.rows;
-  return (
-    <div className="qa-results">
-      <table>
-        <thead><tr>{columns.map((column, i) => <th key={i}>{column}</th>)}</tr></thead>
-        <tbody>{rows.map((row, r) => <tr key={r}>{row.map((value, c) => <td key={c}>{value === null ? "null" : typeof value === "object" ? JSON.stringify(value) : String(value)}</td>)}</tr>)}</tbody>
-      </table>
-      {truncatedBy && <div className="qa-muted">Showing the first {rows.length} rows.</div>}
-    </div>
-  );
+/** The last answer's results in a chat, or undefined when no answer has finished. */
+export function lastAnswer(chat: Chat): { question: string; rows?: AnswerRows; results?: ResultPages } | undefined {
+  const last = [...chat.turns].reverse().find((turn) => turn.run);
+  return last && { question: last.question, rows: last.run?.answerRows, results: last.run?.results };
+}
+
+/**
+ * An answer's results, with no row limit: a virtualized table (`ResultsTable`) that reads its rows
+ * a page at a time from `results` as it scrolls, starting from the rows the client first read.
+ */
+export function AnswerResults(props: { rows?: AnswerRows; results?: ResultPages }): JSX.Element {
+  return <ResultsTable rows={props.rows} results={props.results} />;
 }
 
 export function AgentWorkbench(props: AgentWorkbenchProps): JSX.Element {
-  const { client, onChange, ...chatProps } = props;
+  const { client, onChange, showResults = true, ...chatProps } = props;
   const [chat, setChat] = useState<Chat>({ turns: [] });
   const [history, setHistory] = useState<Chat[]>([]);
   const [opened, setOpened] = useState<{ chat: Chat; key: number }>({ chat: { turns: [] }, key: 0 });
-  const [tab, setTab] = useState<Tab>("results");
-
-  // The answer's results: read by the client once, when the run ended.
-  const last = [...chat.turns].reverse().find((turn) => turn.run);
+  const tabs: Tab[] = showResults ? ["results", "history"] : ["history"];
+  const [chosen, setTab] = useState<Tab>("results");
+  const tab = tabs.includes(chosen) ? chosen : tabs[0];
 
   const changed = (next: Chat): void => {
     // "New chat" empties the chat: the one before goes into the history.
@@ -50,6 +53,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps): JSX.Element {
   const reopen = (earlier: Chat): void => {
     setHistory((list) => [...(chat.turns.length > 0 ? [chat] : []), ...list.filter((item) => item !== earlier)]);
     setChat(earlier);
+    onChange?.(earlier);
     setOpened({ chat: earlier, key: opened.key + 1 });
   };
 
@@ -67,13 +71,13 @@ export function AgentWorkbench(props: AgentWorkbenchProps): JSX.Element {
       </div>
       <div className="qa-workbench-side">
         <div className="qa-tabs" role="tablist">
-          {(["results", "history"] as Tab[]).map((name) => (
+          {tabs.map((name) => (
             <button type="button" role="tab" aria-selected={tab === name} key={name} onClick={() => setTab(name)}>
               {{ results: "Results", history: "History" }[name]}
             </button>
           ))}
         </div>
-        {tab === "results" && <ResultsTable rows={last?.run?.answerRows} />}
+        {tab === "results" && <AnswerResults rows={lastAnswer(chat)?.rows} results={lastAnswer(chat)?.results} />}
         {tab === "history" && (
           <ul className="qa-history">
             {history.map((earlier, i) => (

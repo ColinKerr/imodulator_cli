@@ -7,8 +7,9 @@
  */
 
 import { readCapped, type RunRawQuery } from "./caps";
+import type { ResultPages } from "./result-pages";
 import {
-  HISTORY_CAPS, type EarlierQuestion, type QueryRows, type ResultCaps, type StartupResult, type StopReason, type SubmittedAnswer,
+  HISTORY_CAPS, type AnswerMode, type ResultType, type EarlierQuestion, type QueryRows, type ResultCaps, type StartupResult, type StopReason, type SubmittedAnswer,
   type TurnRequest, type TurnResponse,
 } from "./turn-api";
 
@@ -23,6 +24,8 @@ export interface ClientOptions {
   earlier?: readonly EarlierQuestion[];
   /** The token of the chat's last finished run. Opaque: kept and sent back, never read. */
   token?: string;
+  /** How the answer is to be given (`AnswerMode`). Sent with every turn. */
+  answerMode?: AnswerMode;
   /** Called before each turn is sent (`thinking`), and before each query runs (`querying`, with its ECSql). */
   onPhase?: (phase: "thinking" | "querying", ecsql?: string) => void;
   signal?: AbortSignal;
@@ -41,8 +44,21 @@ export interface AgentRun {
   runId: string;
   /** The token for the chat's next question.*/
   token: string;
+  /** The answer mode the run was asked in, as the host sent it. */
+  answerMode?: AnswerMode;
+  /**
+   * In the `auto` and `select` modes: what the answer is (`done.resultType`). `selection`: its
+   * query is the selection, and no rows clears it. `answer`: select its rows only when they carry
+   * `ECInstanceId` and `ClassName`.
+   */
+  resultType?: ResultType;
   /** The answer's query's rows, read once when the run ended (`AgentClient.ask`), or its error. */
   answerRows?: AnswerRows;
+  /**
+   * All the answer's rows, with no limit, read a page at a time as a table asks for them. Present
+   * when the answer has a query and there is an iModel. For the host only: never sent to the function.
+   */
+  results?: ResultPages;
 }
 
 /** An answer's query's rows, as the client read them, or the error it gave. */
@@ -101,6 +117,7 @@ export async function driveTurns(question: string, client: ClientOptions, turn: 
       ...(token ? { token } : {}),
       ...(results ? { results } : {}),
       ...(client.signal?.aborted ? { aborted: true } : {}),
+      ...(client.answerMode ? { answerMode: client.answerMode } : {}),
     };
     client.onPhase?.("thinking");
     const response: TurnResponse = await turn(request, client.signal);
@@ -114,6 +131,7 @@ export async function driveTurns(question: string, client: ClientOptions, turn: 
         ...(done.structured ? { structured: done.structured } : {}),
         runId: done.runId,
         token: response.token,
+        ...(done.resultType ? { resultType: done.resultType } : {}),
       };
     }
     results = [];

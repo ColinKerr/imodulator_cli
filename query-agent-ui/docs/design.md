@@ -46,8 +46,10 @@ const client = AgentClient.start({ runQuery: queryRunner(imodel), imodelName, fu
    message and corrects the query.
 4. This repeats until the function's answer says the run is done: the answer's text, its query,
    the answer as the model submitted it (`structured`), why it stopped, and a run id.
-5. The client then reads the answer's query once (up to 200 rows), so the host can show the
-   results (`run.answerRows`).
+5. The client then reads the answer's query once (up to 200 rows, `run.answerRows`): the first
+   rows, which a later question of the chat sends. It also keeps `run.results`, all the rows with
+   no limit, read a page at a time as a table asks for them (below).
+6. In the `auto` and `select` modes, the run carries `resultType` (below).
 
 **The statuses** (`onStatus`): `exploring`, `thinking`, and `querying`. The controls show them as
 "Exploring", "Thinking" and "Running a query".
@@ -59,6 +61,59 @@ The run ends with `stoppedBecause: "aborted"`.
 **How a run ends** (`stoppedBecause`): `answered`; `stuck` (its queries kept failing, or the model
 gave no answer); `steps` (it reached its step limit); or `aborted`. A run that stops early still
 has an answer: what the agent could say, often with the last query that worked.
+
+## Answer modes, for a host that selects
+
+A host that selects an answer's elements starts the client with `answerMode: "auto"`, or passes a
+mode to one `ask`. The client sends it with every turn, as the host chose it: **the client never
+scans the question.** The agent decides what each question gets.
+
+- **`auto`:** the agent decides whether each question asks to select elements. A selection
+  request is answered with one query of the elements (`ECInstanceId`, `ClassName`). Any other
+  answer whose rows are elements carries the same two columns.
+- **`select`:** a host preference (the user chose to select): every question is a selection
+  request.
+- **`run.resultType`** says what the answer is, never how the agent made it:
+  - `selection`: the answer's query is the selection; no rows, or `not_found`, clears it;
+  - `answer`: select its rows only when they have both key columns.
+
+## Reading a selection: `readSelection`
+
+A selection is read **in full, with no row cap** (the number of elements selected is never
+limited): `client.readSelection(ecsql, onKeys, signal)` gives
+`{ keys, count, notElements } | { error }`.
+
+- **Ids** are hex (`0x1a`); **class names** are `Schema.Class`. Each key (class and id) is kept once.
+- **A key is kept only when its class is an element class** (derived from `BisCore.Element`,
+  checked once per class). Ids are not unique across tables: an aspect can have the same id as an
+  unrelated element. Other rows are left out and counted in `notElements`, as is a row with no id.
+- **A row without a class** (no `ClassName` column, or a null one) has its class read from
+  `bis.Element`, in batches of 1,000 ids written into an `IN` list (the query runner binds no
+  parameters).
+- **The query is read with one reader,** which pages through the result itself.
+  `readSelection(runQuery, ecsql, onKeys)` hands the keys on in chunks of 10,000
+  (`SELECTION_CHUNK`) as they are read.
+- **The rows go to the host only.** Nothing of them is sent to the function, now or with a later
+  question.
+- `client.instanceKeys(ids)` gives the same keys for ids from elsewhere, such as an answer's rows.
+
+## All of an answer's rows: `run.results`
+
+`run.results` is a `ResultPages`: the answer's query, read a page of 500 rows at a time
+(`RESULT_PAGE_ROWS`) for a virtualized table, with no row limit.
+
+- **Each page is a read with the iTwin.js query reader's own `limit` option** (`{ offset, count }`),
+  which `queryRunner` passes through (`QueryPageOptions`). That is how the reader pages internally
+  too: every page it reads is a request with an offset and a count. The query is never rewritten.
+- **The count** is read once, with `SELECT COUNT(*) FROM (<query>)`. A query that cannot be counted
+  that way (a CTE) has its end found when a page comes back short; until then `atLeast` is a lower
+  bound.
+- **Pages are read one at a time, for the rows last asked for** (`want(start, end)`): a fast
+  scroll does not queue every page it passed. Read pages are kept.
+- **It starts from `answerRows`** when those were all the rows, and then runs no query at all.
+- A host's own `runQuery` that ignores the page options still works, but reads from the start for
+  every page.
+- `results` is for the host only. Written out as JSON it is just its query and count.
 
 ## Reading rows
 
@@ -139,12 +194,39 @@ empties the chat.
 | `onFeedback` | Turns on the feedback form under each answer, and receives what the user sends |
 | `question` | A question to ask as if typed; asked again whenever its `key` changes |
 | `answerActions` | The host's own buttons under each finished answer |
+| `selection` | The host's unified selection: `{ storage, imodelKey, autoSelect?, onSelected? }`. Each answer that names elements offers "Select N elements" (below) |
 | `renderAfterAnswer`, `renderAfterChat` | Drawn under each answer, and after the questions |
 | `placeholder` | The ask box's placeholder |
 
-**`AgentWorkbench`** is the chat, with two tabs beside it: **Results** (the last answer's rows, as
-the client read them) and **History** (this page's earlier chats; "New chat" moves the current one
-there, and a click reopens it). It takes the same props as `AgentChat`, except the render props.
+**`AgentWorkbench`** is the chat, with two tabs beside it: **Results** (the last answer's rows, all
+of them, in `ResultsTable`) and **History** (this page's earlier chats; "New chat" moves the current one
+there, and a click reopens it). It takes the same props as `AgentChat`, except the render props,
+plus `showResults={false}` for a host that shows the results elsewhere, with `AnswerResults` and
+`lastAnswer(chat)`.
+
+**`ResultsTable`** (and `AnswerResults`, which wraps it) is virtualized: it draws only the rows in
+view and a few either side, at a fixed row height (22px, one line per row), with spacer rows for
+the rest so the scroll bar is the whole result's. It asks `run.results` for the rows in view as it
+scrolls, and shows "N rows" (or "N+ rows" while the count is unknown).
+
+**Selecting an answer's elements** (`selection`, `selection.ts`). `storage` is typed by the two
+methods used, `replaceSelection` and `addToSelection` (`{ imodelKey, source, selectables, level }`), so a `SelectionStorage`
+from `@itwin/unified-selection` fits and the package does not depend on it. The agent's changes
+carry the source `"QueryAgent"` (`SELECTION_SOURCE`) and replace level 0.
+
+- **Every element, with no limit.** An answer whose rows have both `ECInstanceId` and `ClassName`
+  is about those elements: its query is read again in full and every element is selected. Rows
+  with an id but no class offer nothing, since ids are not unique across tables. A selection
+  request that found nothing (`resultType: "selection"`, no rows) clears the selection
+  (`selectsNothing`).
+- **In chunks.** The first 10,000 keys replace the selection and the rest are added, as they are
+  read, so the hilite and the property grid start before the last key is read.
+- **With `autoSelect`,** the selection is replaced once the answer is shown; selecting does not
+  hold the answer back.
+- `onSelected(result, run)` is called after each selection, for a host that zooms to it.
+- The helpers are exported for a host with its own button: `selectableOf`, `rowsSelectable`,
+  `selectsNothing`, `selectAnswerElements`, `replaceWith`, `selectedMessage`, and the
+  `SelectElements` control.
 
 **The feedback form** (`onFeedback`). The user rates an answer (right, partly or wrong), may
 correct its text or its query, and may add a comment. They then see exactly what would be sent,

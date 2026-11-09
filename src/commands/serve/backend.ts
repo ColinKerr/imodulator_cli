@@ -6,6 +6,10 @@ export interface ServeBackendArgs {
   imodelPath?: string;
   port?: number;
   stop?: boolean;
+  /** Also answer as a local sign-in and the iTwin Platform API, from the cache. */
+  itwinPlatform?: boolean;
+  /** With `itwinPlatform`, the one web app origin allowed to use it. */
+  appOrigin?: string;
   /** Stay attached, with the log in this terminal, until Ctrl+C. */
   foreground?: boolean;
 }
@@ -35,13 +39,21 @@ export async function runServeBackend(args: ServeBackendArgs): Promise<ServeBack
   const foreground = foregroundRequested(args.foreground);
   const server = await startServerProcess("backend", {
     port: args.port,
-    env: { IMOD_SERVE_IMODEL_PATH: args.imodelPath },
+    env: {
+      IMOD_SERVE_IMODEL_PATH: args.imodelPath,
+      IMOD_SERVE_ITWIN_PLATFORM: args.itwinPlatform ? "1" : undefined,
+      IMOD_SERVE_APP_ORIGIN: args.appOrigin,
+    },
     foreground,
   });
 
   console.log(`Backend server listening at ${server.url} (pid ${server.pid}).`);
   if (server.defaultIModel)
     console.log(`Opened ${server.defaultIModel.filePath} with key "${server.defaultIModel.key}".`);
+  if (server.itwinPlatform) {
+    console.log(`Sign-in (IMS):   ${server.itwinPlatform.signInUrl}`);
+    console.log(`iTwin API:       ${server.itwinPlatform.apiUrl}`);
+  }
   console.log(`Open an iModel:  curl -X POST ${server.url}/open -H "Content-Type: application/json" -d '{"key":"<path or imodelId/briefcaseId>"}'`);
   console.log(`Log:             ${server.logFile}`);
   if (foreground) {
@@ -68,6 +80,15 @@ export const serveBackendCommand: CommandModule<unknown, ServeBackendArgs> = {
         default: DEFAULT_PORT,
         describe: "Port to listen on. 0 picks any free port",
       })
+      .option("itwin-platform", {
+        type: "boolean",
+        default: false,
+        describe: "Also answer as a local sign-in (no account) and as the iTwin Platform API for the iModels in the cache, so a standard iTwin.js web app can pick and view them. Local use only",
+      })
+      .option("app-origin", {
+        type: "string",
+        describe: "With --itwin-platform, the one web app origin allowed to use it, such as http://localhost:3000. Any origin when not given",
+      })
       .option("stop", {
         type: "boolean",
         default: false,
@@ -79,6 +100,13 @@ export const serveBackendCommand: CommandModule<unknown, ServeBackendArgs> = {
         describe: "Stay attached: print the server logs in this terminal, and stop on Ctrl+C. IMOD_SERVE_FOREGROUND=1 does the same",
       }) as never,
   handler: async (argv) => {
-    await runServeBackend({ imodelPath: argv.imodelPath, port: argv.port, stop: argv.stop, foreground: argv.foreground });
+    await runServeBackend({
+      imodelPath: argv.imodelPath,
+      port: argv.port,
+      stop: argv.stop,
+      foreground: argv.foreground,
+      itwinPlatform: argv.itwinPlatform,
+      appOrigin: argv.appOrigin,
+    });
   },
 };

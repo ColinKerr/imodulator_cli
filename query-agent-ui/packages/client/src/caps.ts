@@ -18,7 +18,19 @@ export interface RawQueryResult {
   rows: AsyncIterable<unknown[]>;
 }
 
-export type RunRawQuery = (ecsql: string) => Promise<RawQueryResult>;
+/**
+ * Which rows of a result to read, passed to the iTwin.js query reader as its own options
+ * (`QueryOptions.limit` and `restartToken`): the reader asks the backend for exactly these rows,
+ * so a page of a large result is read without reading the rows before it.
+ */
+export interface QueryPageOptions {
+  /** The rows to read: `count` rows from `offset`. */
+  limit?: { offset: number; count: number };
+  /** A newer query with the same token cancels this one (the reader's `restartToken`). */
+  restartToken?: string;
+}
+
+export type RunRawQuery = (ecsql: string, page?: QueryPageOptions) => Promise<RawQueryResult>;
 
 /** A string cut to the cap, as the function will show it: used only to measure the line. */
 function asShown(value: unknown, maxCellChars: number): unknown {

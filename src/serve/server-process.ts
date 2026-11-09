@@ -45,6 +45,8 @@ export interface ServerRecord {
   startedAt: string;
   logFile: string;
   defaultIModel?: { key: string; filePath: string };
+  /** A backend started with `--itwin-platform`: the URLs a web app is given for it. */
+  itwinPlatform?: { signInUrl: string; apiUrl: string };
   /**
    * The server that started this one, when it was not started on its own account.
    *
@@ -210,6 +212,7 @@ export async function startServerProcess(kind: ServerKind, args: StartServerArgs
       startedAt: new Date().toISOString(),
       logFile,
       defaultIModel: ready.defaultIModel,
+      itwinPlatform: ready.itwinPlatform,
       startedBy: args.startedBy,
     };
     fs.writeFileSync(serverRecordPath(kind), JSON.stringify(record, null, 2));
@@ -279,6 +282,7 @@ interface ReadyMessage {
   url: string;
   error?: string;
   defaultIModel?: { key: string; filePath: string };
+  itwinPlatform?: { signInUrl: string; apiUrl: string };
 }
 
 function waitForReady(child: ReturnType<typeof spawn>, logFile: string): Promise<ReadyMessage> {
