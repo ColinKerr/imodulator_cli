@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { act } from "react";
-import { ResultPages, type QueryPageOptions, type RawQueryResult } from "@query-agent/client";
+import { RESULT_PAGE_ROWS, ResultPages, type QueryPageOptions, type RawQueryResult } from "@query-agent/client";
 import { MAX_SCROLL_HEIGHT, ResultsTable, ROW_HEIGHT } from "../src/ResultsTable";
 import { mount, settle } from "./helpers";
 
@@ -55,7 +55,8 @@ describe("ResultsTable", () => {
       scroller.dispatchEvent(new Event("scroll"));
     });
     await settle();
-    expect(offsets).toContain(999_500);
+    // The page holding row 1,000,000, whatever the page size.
+    expect(offsets).toContain(Math.floor(1_000_000 / RESULT_PAGE_ROWS) * RESULT_PAGE_ROWS);
     expect(container.textContent).toContain("E1000001");
   });
 
