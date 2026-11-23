@@ -1,6 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist/esm", "module": "ESNext", "moduleResolution": "bundler", "lib": ["ES2022", "DOM"], "types": [] },
-  "include": ["src/**/*", "src/**/*.json"],
-  "exclude": ["src/node/**/*"]
-}

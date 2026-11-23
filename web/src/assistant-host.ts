@@ -1,5 +1,5 @@
 /**
- * The Assistant tab: the query agent's larger control (`AgentWorkbench` from `@query-agent/react`),
+ * The Assistant tab: the query agent's larger control (`AgentWorkbench` from `@colin_kerr/query-agent-react`),
  * mounted in the console.
  *
  * The browser drives the agent: an `AgentClient` runs the startup list and the agent's queries on
@@ -14,10 +14,10 @@
 import { createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { IModelConnection } from "@itwin/core-frontend";
-import { AgentClient, queryRunner, type AgentRun, type TurnRefused } from "@query-agent/client";
-import { AgentWorkbench, type ChatTurn, type Feedback } from "@query-agent/react";
+import { AgentClient, queryRunner, type AgentRun, type TurnRefused } from "@colin_kerr/query-agent-client";
+import { AgentWorkbench, type ChatTurn, type Feedback } from "@colin_kerr/query-agent-react";
 import type { AnswerAction, AnswerTurn, FeedbackHandler } from "./extension-api";
-import "@query-agent/react/styles.css";
+import "@colin_kerr/query-agent-react/styles.css";
 
 export interface AssistantHostCallbacks {
   /** What is in the query editor, sent as context. */

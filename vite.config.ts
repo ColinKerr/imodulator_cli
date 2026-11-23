@@ -37,8 +37,7 @@ export default defineConfig({
   root: "web",
   base: "./",
   plugins: [ecsqlHelp()],
-  // The packages in query-agent-ui are linked (file: dependencies), and that folder has its own
-  // React. One copy for the page, or the controls' hooks break.
+  // One copy of React for the page, or the query agent controls' hooks break.
   resolve: { dedupe: ["react", "react-dom"] },
   build: {
     outDir: "../dist/web",

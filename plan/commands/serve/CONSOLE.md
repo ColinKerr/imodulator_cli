@@ -159,8 +159,8 @@ Panel behaviour:
 
 The Assistant tab answers questions about the open iModel, and writes ECSql for them. It is the
 query agent's workbench control (`AgentWorkbench`), from the client library and controls in
-[`query-agent-ui/`](../../../query-agent-ui/README.md); their design is in
-[`query-agent-ui/docs/design.md`](../../../query-agent-ui/docs/design.md). The host code is
+the `@colin_kerr/query-agent-client` and `@colin_kerr/query-agent-react` packages (the
+`query_agent_ui` repository); their design is in its `docs/design.md`. The host code is
 `web/src/assistant-host.ts`.
 
 - **Where the agent is.** The agent is a separate service, the agent function. The console server
